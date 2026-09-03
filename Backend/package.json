@@ -1,0 +1,26 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node VetStockDatabase/Database_Vetstock.js",
+    "init-db": "node VetStockDatabase/Database_Vetstock.js",
+    "backup": "node VetStockDatabase/Backup_Data.js",
+    "migrate": "node VetStockDatabase/Migrate_Database.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "firebase": "^12.18.0",
+    "firebase-admin": "^14.3.0",
+    "jsonwebtoken": "^9.0.3"
+  }
+}
