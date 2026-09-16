@@ -9,15 +9,17 @@ import Reports from "./pages/Reports";
 import Notifications from "./pages/Notifications";
 import "./App.css";
 
+
 function App() {
     const [loggedIn, setLoggedIn] = useState(false);
-    const [username, setUsername] = useState("");
+    const [email, setEmail] = useState("");
+    // change for const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
-    const [loginError, setLoginError] = useState(false);
-
+    const [loginError, setLoginError] = useState("");
     const [activePage, setActivePage] = useState("dashboard");
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+    
     const menuItems = [
         {
             title: "MAIN",
@@ -69,22 +71,62 @@ function App() {
         },
     };
 
-    function handleLogin(event) {
-        event.preventDefault();
+   async function handleLogin(event) {
+    event.preventDefault();
 
-        if (username === "admin" && password === "admin123") {
-            setLoggedIn(true);
-            setLoginError(false);
-        } else {
-            setLoginError(true);
+    setLoginError("");
+
+    try {
+        const response = await fetch(
+            "http://localhost:3001/api/auth/login",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    email: email,
+                    password: password
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            setLoginError(data.message || "Login failed.");
+            return;
         }
+
+        // Save JWT token
+        localStorage.setItem("token", data.token);
+
+        // Save logged-in user information
+        localStorage.setItem(
+            "user",
+            JSON.stringify(data.user)
+        );
+
+        setLoggedIn(true);
+        setLoginError("");
+
+    } catch (error) {
+        console.error("Login error:", error);
+
+        setLoginError(
+            "Unable to connect to the server."
+        );
     }
+}
 
     function handleLogout() {
         setLoggedIn(false);
-        setUsername("");
+        setEmail("");
         setPassword("");
-        setLoginError(false);
+        setLoginError("");
+    
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
     }
 
     function showPage(pageId) {
@@ -119,9 +161,9 @@ function App() {
 
                         <input
                             type="text"
-                            placeholder="Username"
-                            value={username}
-                            onChange={(event) => setUsername(event.target.value)}
+                            placeholder="Email"
+                            value={email}
+                            onChange={(event) => setEmail(event.target.value)}
                         />
                     </div>
 
