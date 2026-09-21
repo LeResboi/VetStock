@@ -18,14 +18,16 @@ router.get("/", authenticateToken, async (req, res) => {
         // Get patients belonging to this clinic
         const { data: patients, error: patientError } = await supabase
             .from("patients")
-            .select("patient_id")
+            .select("patient_id, mrn_number")
             .eq("clinic_id", req.user.clinic_id);
 
         if (patientError) {
             throw patientError;
         }
 
-        const patientIds = patients.map(patient => patient.patient_id);
+        const patientIds = patients.map(
+            patient => patient.patient_id
+        );
 
         if (patientIds.length === 0) {
             return res.json({
@@ -44,9 +46,22 @@ router.get("/", authenticateToken, async (req, res) => {
             throw error;
         }
 
+        // Match each health record to its patient's MRN
+        const patientMrnMap = new Map(
+            patients.map(patient => [
+                patient.patient_id,
+                patient.mrn_number
+            ])
+        );
+
+        const dataWithMrn = data.map(record => ({
+            ...record,
+            mrn_number: patientMrnMap.get(record.patient_id)
+        }));
+
         return res.json({
             success: true,
-            data
+            data: dataWithMrn
         });
 
     } catch (error) {
@@ -59,7 +74,6 @@ router.get("/", authenticateToken, async (req, res) => {
         });
     }
 });
-
 
 // ======================================================
 // GET ONE HEALTH RECORD
@@ -81,6 +95,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
         }
 
         // Check patient belongs to clinic
+        // Confirm patient belongs to the clinic
         const { data: patient, error: patientError } = await supabase
             .from("patients")
             .select("clinic_id")
@@ -148,10 +163,23 @@ router.post(
             }
 
             // Confirm patient belongs to the clinic
+            const cleanPatientId = patient_id.trim().toUpperCase();
+
+            const match = cleanPatientId.match(/^MRN-(\d+)-A$/);
+
+            if (!match) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid Patient ID format. Use MRN-00001-A."
+                });
+            }
+
+            const mrnNumber = Number(match[1]);
+
             const { data: patient, error: patientError } = await supabase
                 .from("patients")
                 .select("patient_id")
-                .eq("patient_id", patient_id)
+                .eq("mrn_number", mrnNumber)
                 .eq("clinic_id", req.user.clinic_id)
                 .single();
 
@@ -165,11 +193,13 @@ router.post(
             const { data, error } = await supabase
                 .from("health_records")
                 .insert([{
-                    patient_id,
+                    patient_id: patient.patient_id,
                     veterinarian_id: req.user.user_id,
                     diagnosis: diagnosis || null,
-                    symptoms: symptoms || null,
-                    treatment: treatment || null,
+                    symptoms: symptoms
+                        ? [symptoms]
+                        : null,
+                    treatment_notes: treatment || null,
                     notes: notes || null,
                     record_date: new Date().toISOString()
                 }])

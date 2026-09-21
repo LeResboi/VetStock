@@ -39,12 +39,16 @@ router.get("/", authenticateToken, async (req, res) => {
                 *,
                 inventory_items (
                     item_name
+                ),
+                users (
+                    first_name,
+                    last_name
                 )
             `)
             .in("item_id", itemIds)
-            .order("transaction_date", { ascending: false });
+            .order("created_at", { ascending: true });
 
-        if (error) {
+        if (error) {    
             throw error;
         }
 
@@ -130,9 +134,8 @@ router.post("/", authenticateToken, async (req, res) => {
             quantity,
             patient_id,
             prescription_id,
-            notes
+            reason
         } = req.body;
-
         if (
             !item_id ||
             !transaction_type ||
@@ -190,9 +193,8 @@ router.post("/", authenticateToken, async (req, res) => {
                 patient_id: patient_id || null,
                 prescription_id: prescription_id || null,
                 transaction_type,
-                quantity,
-                notes: notes || null,
-                transaction_date: new Date().toISOString()
+                quantity: Number(quantity),
+                reason: reason || null
             }])
             .select()
             .single();

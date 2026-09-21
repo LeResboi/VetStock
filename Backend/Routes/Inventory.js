@@ -15,6 +15,7 @@ const router = express.Router();
 
 router.get("/", authenticateToken, async (req, res) => {
     try {
+
         const { data, error } = await supabase
             .from("inventory_items")
             .select(`
@@ -22,11 +23,17 @@ router.get("/", authenticateToken, async (req, res) => {
                 suppliers (
                     supplier_id,
                     supplier_name
+                ),
+                inventory_batches (
+                    batch_id,
+                    batch_number,
+                    quantity,
+                    expiration_date
                 )
             `)
             .eq("clinic_id", req.user.clinic_id)
             .order("created_at", {
-                ascending: false
+                ascending: true
             });
 
         if (error) {
@@ -36,67 +43,51 @@ router.get("/", authenticateToken, async (req, res) => {
             });
         }
 
+
+        // =====================================================
+        // CALCULATE CURRENT STOCK
+        // =====================================================
+
+        const inventoryWithStock = data.map(item => {
+
+            const totalQuantity =
+                Array.isArray(item.inventory_batches)
+                    ? item.inventory_batches.reduce(
+                        (total, batch) =>
+                            total + Number(batch.quantity || 0),
+                        0
+                    )
+                    : 0;
+
+
+            return {
+                ...item,
+
+                // Current stock from all batches
+                quantity: totalQuantity
+            };
+
+        });
+
+
         res.json({
             success: true,
-            count: data.length,
-            data
+            count: inventoryWithStock.length,
+            data: inventoryWithStock
         });
 
     } catch (error) {
-        console.error(error);
+
+        console.error(
+            "Get inventory error:",
+            error
+        );
 
         res.status(500).json({
             success: false,
             message: "Internal server error."
         });
-    }
-});
 
-// ============================================================
-// GET ONE INVENTORY ITEM
-// ============================================================
-
-router.get("/:id", authenticateToken, async (req, res) => {
-    try {
-        const { id } = req.params;
-
-        const { data, error } = await supabase
-            .from("inventory_items")
-            .select(`
-                *,
-                suppliers (
-                    supplier_id,
-                    supplier_name
-                )
-            `)
-            .eq("item_id", id)
-            .eq("clinic_id", req.user.clinic_id)
-            .maybeSingle();
-
-        if (error) {
-            return res.status(500).json({
-                success: false,
-                message: error.message
-            });
-        }
-
-        if (!data) {
-            return res.status(404).json({
-                success: false,
-                message: "Inventory item not found."
-            });
-        }
-
-        res.json({
-            success: true,
-            data
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: "Internal server error."
-        });
     }
 });
 
@@ -194,6 +185,7 @@ router.post(
                     .from("inventory_batches")
                     .insert({
                         item_id: item.item_id,
+                        batch_number: `BATCH-${Date.now()}`,
                         quantity: Number(quantity) || 0,
                         expiration_date:
                             expiration_date || null
@@ -209,7 +201,6 @@ router.post(
                     batchError
                 );
 
-                // Remove item if batch creation failed
                 await supabase
                     .from("inventory_items")
                     .delete()

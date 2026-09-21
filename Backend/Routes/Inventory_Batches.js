@@ -45,7 +45,7 @@ router.get("/", authenticateToken, async (req, res) => {
                 )
             `)
             .in("item_id", itemIds)
-            .order("expiry_date", { ascending: true });
+            .order("expiration_date", { ascending: true });
 
         if (error) {
             throw error;
@@ -139,21 +139,19 @@ router.post(
                 item_id,
                 batch_number,
                 quantity,
-                expiry_date,
-                manufacturing_date,
-                cost_price
+                expiration_date
             } = req.body;
 
             if (
                 !item_id ||
                 !batch_number ||
                 quantity === undefined ||
-                !expiry_date
+                !expiration_date
             ) {
                 return res.status(400).json({
                     success: false,
                     message:
-                        "item_id, batch_number, quantity and expiry_date are required."
+                        "item_id, batch_number, quantity and expiration_date are required."
                 });
             }
 
@@ -178,9 +176,7 @@ router.post(
                     item_id,
                     batch_number,
                     quantity,
-                    expiry_date,
-                    manufacturing_date: manufacturing_date || null,
-                    cost_price: cost_price || null
+                    expiration_date
                 }])
                 .select()
                 .single();
@@ -254,9 +250,7 @@ router.put(
             const allowedFields = [
                 "batch_number",
                 "quantity",
-                "expiry_date",
-                "manufacturing_date",
-                "cost_price"
+                "expiration_date",
             ];
 
             const updates = {};
@@ -266,8 +260,6 @@ router.put(
                     updates[field] = req.body[field];
                 }
             }
-
-            updates.updated_at = new Date().toISOString();
 
             const { data, error } = await supabase
                 .from("inventory_batches")
