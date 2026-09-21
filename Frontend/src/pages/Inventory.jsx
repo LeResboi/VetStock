@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function Inventory() {
 
+    const [medicines, setMedicines] = useState([]);
     const [search, setSearch] = useState("");
+    const [categoryFilter, setCategoryFilter] = useState("All Categories");
+    const [statusFilter, setStatusFilter] = useState("All Status");
     const [showModal, setShowModal] = useState(false);
 
     const [formData, setFormData] = useState({
@@ -26,7 +29,7 @@ function Inventory() {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                "http://localhost:5000/api/inventory",
+                "http://localhost:3001/api/inventory",
                 {
                     method: "POST",
                     headers: {
@@ -48,6 +51,8 @@ function Inventory() {
 
             setShowModal(false);
 
+            await loadInventory();
+
             setFormData({
                 item_name: "",
                 category: "",
@@ -67,18 +72,52 @@ function Inventory() {
             alert("Unable to connect to the server.");
         }
     }
-    
-    const medicines = [
-        ["MED-001", "Amoxicillin 500mg", "Antibiotic", "50", "20", "2027-05-10", "Good"],
-        ["MED-002", "Rabies Vaccine", "Vaccine", "30", "10", "2027-01-15", "Good"],
-        ["MED-003", "Vitamin B Complex", "Supplement", "18", "20", "2026-12-05", "Low Stock"],
-        ["MED-004", "Paracetamol", "Medicine", "8", "15", "2028-03-20", "Low Stock"],
-        ["MED-005", "Deworming Tablet", "Medicine", "75", "25", "2027-08-12", "Good"],
-    ];
 
-    const filteredMedicines = medicines.filter((medicine) =>
-        medicine.join(" ").toLowerCase().includes(search.toLowerCase())
-    );
+    async function loadInventory() {
+        try {
+            const token = localStorage.getItem("token");
+
+            console.log("Token:", token);
+
+            const response = await fetch(
+                "http://localhost:3001/api/inventory",
+                {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                }
+            );
+
+            console.log("GET inventory status:", response.status);
+
+            const data = await response.json();
+
+            console.log("GET inventory response:", data);
+
+            if (!response.ok) {
+                console.error(
+                    "Failed to load inventory:",
+                    data.message
+                );
+                return;
+            }
+
+            console.log("Inventory records:", data.data);
+
+            setMedicines(data.data);
+
+        } catch (error) {
+            console.error(
+                "Load inventory error:",
+                error
+            );
+        }
+    }
+
+    useEffect(() => {
+        loadInventory();
+    }, []);
 
     return (
         <div className="page active-page">
@@ -333,7 +372,10 @@ function Inventory() {
                     }
                 />
 
-                <select>
+                <select
+                    value={categoryFilter}
+                    onChange={(event) => setCategoryFilter(event.target.value)}
+                >
                     <option>All Categories</option>
                     <option>Medicine</option>
                     <option>Antibiotic</option>
@@ -341,10 +383,18 @@ function Inventory() {
                     <option>Supplement</option>
                 </select>
 
-                <select>
+                <select
+                    value={statusFilter}
+                    onChange={(event) =>
+                        setStatusFilter(event.target.value)
+                    }
+                >
                     <option>All Status</option>
                     <option>Good</option>
                     <option>Low Stock</option>
+                    <option>Critical</option>
+                    <option>Expiring Soon</option>
+                    <option>Expired</option>
                 </select>
 
             </div>
@@ -371,52 +421,216 @@ function Inventory() {
 
                         <tbody>
 
-                            {filteredMedicines.map((medicine) => (
 
-                                <tr key={medicine[0]}>
+                            {medicines
+                                .filter((medicine) => {
 
-                                    <td>{medicine[0]}</td>
+                                    // Search filter
+                                    const matchesSearch = Object.values(medicine)
+                                        .join(" ")
+                                        .toLowerCase()
+                                        .includes(search.toLowerCase());
 
-                                    <td>
-                                        <strong>{medicine[1]}</strong>
-                                    </td>
+                                    // Category filter
+                                    const matchesCategory =
+                                        categoryFilter === "All Categories" ||
+                                        medicine.category === categoryFilter;
 
-                                    <td>{medicine[2]}</td>
+                                    // Get current quantity
+                                    const quantity =
+                                        medicine.inventory_batches?.[0]?.quantity ?? 0;
 
-                                    <td>{medicine[3]}</td>
+                                    // Get minimum stock
+                                    const minimum =
+                                        medicine.min_stock_level ?? 0;
 
-                                    <td>{medicine[4]}</td>
+                                    // Get expiration date
+                                    const expirationDate =
+                                        medicine.inventory_batches?.[0]?.expiration_date;
 
-                                    <td>{medicine[5]}</td>
+                                    // Get today's date
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
 
-                                    <td>
+                                    // Determine status
+                                    let status = "Good";
 
-                                        <span
-                                            className={`badge ${medicine[6] === "Good"
-                                                ? "success-badge"
-                                                : "warning-badge"
-                                                }`}
-                                        >
-                                            {medicine[6]}
-                                        </span>
+                                    if (expirationDate) {
 
-                                    </td>
+                                        const expiration =
+                                            new Date(`${expirationDate}T00:00:00`);
 
-                                    <td>
+                                        // Already expired
+                                        if (expiration <= today) {
+                                            status = "Expired";
 
-                                        <button className="action-btn">
-                                            <i className="fa-solid fa-pen"></i>
-                                        </button>
+                                            // Expires within 30 days
+                                        } else {
 
-                                        <button className="action-btn">
-                                            <i className="fa-solid fa-trash"></i>
-                                        </button>
+                                            const daysUntilExpiration =
+                                                Math.ceil(
+                                                    (
+                                                        expiration - today
+                                                    ) /
+                                                    (1000 * 60 * 60 * 24)
+                                                );
 
-                                    </td>
+                                            if (daysUntilExpiration <= 30) {
+                                                status = "Expiring Soon";
+                                            }
+                                        }
+                                    }
 
-                                </tr>
+                                    // Stock conditions
+                                    if (status !== "Expired" && quantity === 0) {
+                                        status = "Critical";
+                                    }
 
-                            ))}
+                                    if (
+                                        status !== "Expired" &&
+                                        status !== "Critical" &&
+                                        quantity <= minimum
+                                    ) {
+                                        status = "Low Stock";
+                                    }
+
+                                    // Status filter
+                                    const matchesStatus =
+                                        statusFilter === "All Status" ||
+                                        status === statusFilter;
+
+                                    return (
+                                        matchesSearch &&
+                                        matchesCategory &&
+                                        matchesStatus
+                                    );
+                                })
+                                .map((medicine) => (
+
+                                    <tr key={medicine.item_id}>
+
+                                        <td>
+                                            {medicine.item_code}
+                                        </td>
+
+                                        <td>
+                                            <strong>
+                                                {medicine.item_name}
+                                            </strong>
+                                        </td>
+
+                                        <td>
+                                            {medicine.category || "-"}
+                                        </td>
+
+                                        <td>
+                                            {medicine.inventory_batches?.[0]?.quantity ?? 0}
+                                        </td>
+
+                                        <td>
+                                            {medicine.min_stock_level}
+                                        </td>
+
+                                        <td>
+                                            {medicine.inventory_batches?.[0]?.expiration_date || "-"}
+                                        </td>
+
+                                        <td>
+
+                                            {(() => {
+
+                                                const quantity =
+                                                    medicine.inventory_batches?.[0]?.quantity ?? 0;
+
+                                                const minimum =
+                                                    medicine.min_stock_level ?? 0;
+
+                                                const expirationDate =
+                                                    medicine.inventory_batches?.[0]?.expiration_date;
+
+                                                const today = new Date();
+                                                today.setHours(0, 0, 0, 0);
+
+                                                let status = "Good";
+
+                                                if (expirationDate) {
+
+                                                    const expiration =
+                                                        new Date(`${expirationDate}T00:00:00`);
+
+                                                    if (expiration <= today) {
+
+                                                        status = "Expired";
+
+                                                    } else {
+
+                                                        const daysUntilExpiration =
+                                                            Math.ceil(
+                                                                (
+                                                                    expiration - today
+                                                                ) /
+                                                                (1000 * 60 * 60 * 24)
+                                                            );
+
+                                                        if (daysUntilExpiration <= 30) {
+                                                            status = "Expiring Soon";
+                                                        }
+                                                    }
+                                                }
+
+                                                if (
+                                                    status !== "Expired" &&
+                                                    quantity === 0
+                                                ) {
+                                                    status = "Critical";
+                                                }
+
+                                                if (
+                                                    status !== "Expired" &&
+                                                    status !== "Critical" &&
+                                                    quantity <= minimum
+                                                ) {
+                                                    status = "Low Stock";
+                                                }
+
+                                                let badgeClass = "success-badge";
+
+                                                if (status === "Expired") {
+                                                    badgeClass = "danger-badge";
+                                                } else if (status === "Critical") {
+                                                    badgeClass = "danger-badge";
+                                                } else if (
+                                                    status === "Low Stock" ||
+                                                    status === "Expiring Soon"
+                                                ) {
+                                                    badgeClass = "warning-badge";
+                                                }
+
+                                                return (
+                                                    <span className={`badge ${badgeClass}`}>
+                                                        {status}
+                                                    </span>
+                                                );
+
+                                            })()}
+
+                                        </td>
+
+                                        <td>
+
+                                            <button className="action-btn">
+                                                <i className="fa-solid fa-pen"></i>
+                                            </button>
+
+                                            <button className="action-btn">
+                                                <i className="fa-solid fa-trash"></i>
+                                            </button>
+
+                                        </td>
+
+                                    </tr>
+
+                                ))}
 
                         </tbody>
 
