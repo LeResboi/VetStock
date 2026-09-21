@@ -20,8 +20,7 @@ router.post("/register", async (req, res) => {
             password,
             first_name,
             last_name,
-            clinic_id,
-            role_id
+            role
         } = req.body;
 
         // ----------------------------------------------------
@@ -68,10 +67,54 @@ router.post("/register", async (req, res) => {
         }
 
         // ----------------------------------------------------
+        // FIND ROLE ID
+        // ----------------------------------------------------
+
+        const { data: roleData, error: roleError } = await supabase
+            .from("roles")
+            .select("role_id")
+            .eq("role_name", role)
+            .single();
+
+        if (roleError || !roleData) {
+            return res.status(400).json({
+                success: false,
+                message: "Selected role was not found."
+            });
+        }
+
+
+        // ----------------------------------------------------
         // HASH PASSWORD
         // ----------------------------------------------------
 
         const passwordHash = await bcrypt.hash(password, 12);
+
+        // ----------------------------------------------------
+        // GET THE SINGLE CLINIC
+        // ----------------------------------------------------
+
+        const { data: clinic, error: clinicError } = await supabase
+            .from("clinics")
+            .select("clinic_id")
+            .limit(1)
+            .maybeSingle();
+
+        if (clinicError) {
+            console.error("Clinic lookup error:", clinicError);
+
+            return res.status(500).json({
+                success: false,
+                message: "Unable to find clinic."
+            });
+        }
+
+        if (!clinic) {
+            return res.status(500).json({
+                success: false,
+                message: "No clinic is configured."
+            });
+        }
 
         // ----------------------------------------------------
         // CREATE USER
@@ -84,8 +127,8 @@ router.post("/register", async (req, res) => {
                 password_hash: passwordHash,
                 first_name: first_name || null,
                 last_name: last_name || null,
-                clinic_id: clinic_id || null,
-                role_id: role_id || null,
+                clinic_id: clinic.clinic_id,
+                role_id: roleData.role_id,
                 is_active: true
             })
             .select(`

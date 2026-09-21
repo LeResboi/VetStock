@@ -15,6 +15,7 @@ const router = express.Router();
 
 router.get("/", authenticateToken, async (req, res) => {
     try {
+
         const { data, error } = await supabase
             .from("inventory_items")
             .select(`
@@ -22,11 +23,17 @@ router.get("/", authenticateToken, async (req, res) => {
                 suppliers (
                     supplier_id,
                     supplier_name
+                ),
+                inventory_batches (
+                    batch_id,
+                    batch_number,
+                    quantity,
+                    expiration_date
                 )
             `)
             .eq("clinic_id", req.user.clinic_id)
             .order("created_at", {
-                ascending: false
+                ascending: true
             });
 
         if (error) {
@@ -36,67 +43,51 @@ router.get("/", authenticateToken, async (req, res) => {
             });
         }
 
+
+        // =====================================================
+        // CALCULATE CURRENT STOCK
+        // =====================================================
+
+        const inventoryWithStock = data.map(item => {
+
+            const totalQuantity =
+                Array.isArray(item.inventory_batches)
+                    ? item.inventory_batches.reduce(
+                        (total, batch) =>
+                            total + Number(batch.quantity || 0),
+                        0
+                    )
+                    : 0;
+
+
+            return {
+                ...item,
+
+                // Current stock from all batches
+                quantity: totalQuantity
+            };
+
+        });
+
+
         res.json({
             success: true,
-            count: data.length,
-            data
+            count: inventoryWithStock.length,
+            data: inventoryWithStock
         });
 
     } catch (error) {
-        console.error(error);
+
+        console.error(
+            "Get inventory error:",
+            error
+        );
 
         res.status(500).json({
             success: false,
             message: "Internal server error."
         });
-    }
-});
 
-// ============================================================
-// GET ONE INVENTORY ITEM
-// ============================================================
-
-router.get("/:id", authenticateToken, async (req, res) => {
-    try {
-        const { id } = req.params;
-
-        const { data, error } = await supabase
-            .from("inventory_items")
-            .select(`
-                *,
-                suppliers (
-                    supplier_id,
-                    supplier_name
-                )
-            `)
-            .eq("item_id", id)
-            .eq("clinic_id", req.user.clinic_id)
-            .maybeSingle();
-
-        if (error) {
-            return res.status(500).json({
-                success: false,
-                message: error.message
-            });
-        }
-
-        if (!data) {
-            return res.status(404).json({
-                success: false,
-                message: "Inventory item not found."
-            });
-        }
-
-        res.json({
-            success: true,
-            data
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: "Internal server error."
-        });
     }
 });
 
@@ -115,6 +106,7 @@ router.post(
     async (req, res) => {
 
         try {
+
             const {
                 item_name,
                 category,
@@ -125,8 +117,11 @@ router.post(
                 min_stock_level,
                 max_stock_level,
                 reorder_point,
-                storage_conditions
+                storage_conditions,
+                quantity,
+                expiration_date
             } = req.body;
+
 
             if (!item_name) {
                 return res.status(400).json({
@@ -135,189 +130,107 @@ router.post(
                 });
             }
 
-            const { data, error } = await supabase
-                .from("inventory_items")
-                .insert({
-                    clinic_id: req.user.clinic_id,
-                    supplier_id: supplier_id || null,
-                    item_name,
-                    category: category || null,
-                    unit_of_measure: unit_of_measure || null,
-                    unit_price: Number(unit_price) || 0,
-                    cost_price: Number(cost_price) || 0,
-                    min_stock_level:
-                        Number(min_stock_level) || 0,
-                    max_stock_level:
-                        Number(max_stock_level) || 0,
-                    reorder_point:
-                        Number(reorder_point) || 0,
-                    storage_conditions:
-                        storage_conditions || null
-                })
-                .select()
-                .single();
 
-            if (error) {
+            // =====================================================
+            // CREATE INVENTORY ITEM
+            // =====================================================
+
+            const { data: item, error: itemError } =
+                await supabase
+                    .from("inventory_items")
+                    .insert({
+                        clinic_id: req.user.clinic_id,
+                        supplier_id: supplier_id || null,
+                        item_name,
+                        category: category || null,
+                        unit_of_measure:
+                            unit_of_measure || null,
+                        unit_price:
+                            Number(unit_price) || 0,
+                        cost_price:
+                            Number(cost_price) || 0,
+                        min_stock_level:
+                            Number(min_stock_level) || 0,
+                        max_stock_level:
+                            Number(max_stock_level) || 0,
+                        reorder_point:
+                            Number(reorder_point) || 0,
+                        storage_conditions:
+                            storage_conditions || null
+                    })
+                    .select()
+                    .single();
+
+
+            if (itemError) {
+
+                console.error(
+                    "Inventory item error:",
+                    itemError
+                );
+
                 return res.status(500).json({
                     success: false,
-                    message: error.message
+                    message: itemError.message
                 });
             }
+
+
+            // =====================================================
+            // CREATE INVENTORY BATCH
+            // =====================================================
+
+            const { data: batch, error: batchError } =
+                await supabase
+                    .from("inventory_batches")
+                    .insert({
+                        item_id: item.item_id,
+                        batch_number: `BATCH-${Date.now()}`,
+                        quantity: Number(quantity) || 0,
+                        expiration_date:
+                            expiration_date || null
+                    })
+                    .select()
+                    .single();
+
+
+            if (batchError) {
+
+                console.error(
+                    "Inventory batch error:",
+                    batchError
+                );
+
+                await supabase
+                    .from("inventory_items")
+                    .delete()
+                    .eq("item_id", item.item_id);
+
+                return res.status(500).json({
+                    success: false,
+                    message: batchError.message
+                });
+            }
+
 
             res.status(201).json({
                 success: true,
                 message:
                     "Inventory item created successfully.",
-                data
-            });
-
-        } catch (error) {
-            console.error(error);
-
-            res.status(500).json({
-                success: false,
-                message: "Internal server error."
-            });
-        }
-    }
-);
-
-// ============================================================
-// UPDATE INVENTORY ITEM
-// ============================================================
-
-router.put(
-    "/:id",
-    authenticateToken,
-    requireRole(
-        "Administrator",
-        "Clinic Manager",
-        "Inventory Staff"
-    ),
-    async (req, res) => {
-
-        try {
-            const { id } = req.params;
-
-            const allowedFields = [
-                "item_name",
-                "category",
-                "unit_of_measure",
-                "unit_price",
-                "cost_price",
-                "supplier_id",
-                "min_stock_level",
-                "max_stock_level",
-                "reorder_point",
-                "storage_conditions",
-                "is_active"
-            ];
-
-            const updates = {};
-
-            for (const field of allowedFields) {
-                if (req.body[field] !== undefined) {
-                    updates[field] = req.body[field];
+                data: {
+                    item,
+                    batch
                 }
-            }
-
-            updates.updated_at =
-                new Date().toISOString();
-
-            const { data, error } = await supabase
-                .from("inventory_items")
-                .update(updates)
-                .eq("item_id", id)
-                .eq("clinic_id", req.user.clinic_id)
-                .select()
-                .maybeSingle();
-
-            if (error) {
-                return res.status(500).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-
-            if (!data) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Inventory item not found."
-                });
-            }
-
-            res.json({
-                success: true,
-                message:
-                    "Inventory item updated successfully.",
-                data
             });
+
 
         } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: "Internal server error."
-            });
-        }
-    }
-);
 
-// ============================================================
-// DELETE / DEACTIVATE INVENTORY ITEM
-// ============================================================
+            console.error(
+                "Create inventory error:",
+                error
+            );
 
-router.delete(
-    "/:id",
-    authenticateToken,
-    requireRole(
-        "Administrator",
-        "Clinic Manager"
-    ),
-    async (req, res) => {
-
-        try {
-            const { id } = req.params;
-
-            /*
-             * Soft delete:
-             * We deactivate the item instead of permanently
-             * deleting historical inventory information.
-             */
-
-            const { data, error } = await supabase
-                .from("inventory_items")
-                .update({
-                    is_active: false,
-                    updated_at:
-                        new Date().toISOString()
-                })
-                .eq("item_id", id)
-                .eq("clinic_id", req.user.clinic_id)
-                .select()
-                .maybeSingle();
-
-            if (error) {
-                return res.status(500).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-
-            if (!data) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Inventory item not found."
-                });
-            }
-
-            res.json({
-                success: true,
-                message:
-                    "Inventory item deactivated successfully.",
-                data
-            });
-
-        } catch (error) {
             res.status(500).json({
                 success: false,
                 message: "Internal server error."
