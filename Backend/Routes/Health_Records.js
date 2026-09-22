@@ -8,7 +8,6 @@ import { requireRole } from "../Middleware/Roles.js";
 
 const router = express.Router();
 
-
 // ======================================================
 // GET ALL HEALTH RECORDS
 // GET /api/health-records

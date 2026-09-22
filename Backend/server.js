@@ -11,6 +11,7 @@ import stockTransactionRoutes from "./Routes/Stock_Transactions.js";
 import alertRoutes from "./Routes/Alerts.js";
 import healthRecordsRoutes from "./Routes/Health_Records.js";
 import patientRoutes from "./Routes/Patients.js";
+import reportsRoutes from "./Routes/Reports.js";
 
 
 dotenv.config();
@@ -49,6 +50,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/health-records", healthRecordsRoutes);
 app.use("/api/patients", patientRoutes);
+app.use("/api/reports", reportsRoutes);
 
 app.use(
     "/api/stock-transactions",
