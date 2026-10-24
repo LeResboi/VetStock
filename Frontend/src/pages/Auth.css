@@ -1,0 +1,155 @@
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #e0f2f1;
+}
+
+.auth-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  padding: 20px;
+}
+
+.auth-card {
+  display: flex;
+  background: #ffffff;
+  width: 900px;
+  max-width: 100%;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 77, 64, 0.15);
+  overflow: hidden;
+}
+
+.auth-left {
+  flex: 1;
+  background: linear-gradient(135deg, #00796b, #004d40);
+  color: #ffffff;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.illustration-box img {
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+  margin-bottom: 20px;
+  object-fit: contain;
+  background: transparent;
+  box-shadow: none;
+}
+
+.auth-left h2 {
+  margin-bottom: 10px;
+  font-size: 24px;
+}
+
+.auth-left p {
+  font-size: 14px;
+  color: #b2dfdb;
+  line-height: 1.5;
+}
+
+.auth-right {
+  flex: 1;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.auth-right h2 {
+  color: #004d40;
+  margin-bottom: 5px;
+  font-size: 26px;
+}
+
+.auth-subtitle {
+  color: #555;
+  font-size: 14px;
+  margin-bottom: 25px;
+}
+
+.input-group {
+  margin-bottom: 15px;
+}
+
+.input-group input, 
+.input-group select {
+  width: 100%;
+  padding: 12px 15px;
+  border: 1px solid #b2dfdb;
+  border-radius: 6px;
+  background-color: #f5fbfb;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.input-group input:focus, 
+.input-group select:focus {
+  border-color: #00796b;
+  background-color: #ffffff;
+  box-shadow: 0 0 5px rgba(0, 121, 107, 0.2);
+}
+
+.auth-btn {
+  width: 100%;
+  padding: 12px;
+  background-color: #00796b;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-top: 10px;
+}
+
+.auth-btn:hover {
+  background-color: #004d40;
+}
+
+.auth-switch {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 14px;
+  color: #666;
+}
+
+.auth-switch span {
+  color: #00796b;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-switch span:hover {
+  text-decoration: underline;
+}
+
+.error-msg {
+  background-color: #ffebee;
+  color: #c62828;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 15px;
+  text-align: center;
+}
+.input-group select {
+  color: #646262;
+}
+
+.input-group select option {
+  color: #646262;
+}
+.input-group input {
+  color: #646462;
+}
