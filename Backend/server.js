@@ -7,6 +7,12 @@ import dotenv from "dotenv";
 
 import authRoutes from "./Routes/Auth.js";
 import inventoryRoutes from "./Routes/Inventory.js";
+import stockTransactionRoutes from "./Routes/Stock_Transactions.js";
+import alertRoutes from "./Routes/Alerts.js";
+import healthRecordsRoutes from "./Routes/Health_Records.js";
+import patientRoutes from "./Routes/Patients.js";
+import reportsRoutes from "./Routes/Reports.js";
+
 
 dotenv.config();
 
@@ -20,6 +26,10 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+app.use(
+    "/api/stock-transactions",
+    stockTransactionRoutes
+);
 
 // ============================================================
 // BASIC TEST ROUTE
@@ -38,6 +48,16 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/inventory", inventoryRoutes);
+app.use("/api/health-records", healthRecordsRoutes);
+app.use("/api/patients", patientRoutes);
+app.use("/api/reports", reportsRoutes);
+
+app.use(
+    "/api/stock-transactions",
+    stockTransactionRoutes
+);
+
+app.use("/api/alerts", alertRoutes);
 
 // ============================================================
 // 404 HANDLER
