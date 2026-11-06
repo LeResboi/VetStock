@@ -8,8 +8,11 @@ import Transactions from './pages/Transactions';
 import HealthRecords from './pages/HealthRecords';
 import Forecast from './pages/Forecast';
 import Reports from './pages/Reports';
+import AuditLogs from './pages/Audit_Logs';
 import Notifications from './pages/Notifications';
 import Patient from './pages/Patient';
+import UserManagement from "./pages/UserManagement";
+
 
 function DashboardRoute() {
     const navigate = useNavigate();
@@ -39,8 +42,10 @@ function Routing() {
                     <Route path="/HealthRecords" element={<HealthRecords />} />
                     <Route path="/Forecast" element={<Forecast />} />
                     <Route path="/Patient" element={<Patient />} />
+                    <Route path="/Audit_Logs" element={<AuditLogs />} />
                     <Route path="/Reports" element={<Reports />} />
                     <Route path="/Notifications" element={<Notifications />} />
+                    <Route path="/UserManagement" element={<UserManagement />} />
                 </Route>
 
                 {/* Unknown route */}

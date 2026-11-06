@@ -6,6 +6,7 @@ import express from "express";
 import { supabase } from "../VetStockDatabase/Supabase.js";
 import { authenticateToken } from "../Middleware/Authentication.js";
 import { requireRole } from "../Middleware/Roles.js";
+import { createAuditLog } from "../Utils/AuditLogger.js";
 
 const router = express.Router();
 
@@ -220,6 +221,23 @@ router.post(
                 });
             }
 
+            // =====================================================
+            // CREATE AUDIT LOG
+            // =====================================================
+
+            await createAuditLog(req, {
+                action: "CREATE",
+                targetTable: "inventory_items",
+                targetId: item.item_id,
+                details: {
+                    description: `Created inventory item: ${item.item_name}`,
+                    category: item.category,
+                    batch_id: batch.batch_id,
+                    batch_number: batch.batch_number,
+                    initial_quantity: Number(batch.quantity) || 0,
+                    expiration_date: batch.expiration_date || null
+                }
+            });
 
             res.status(201).json({
                 success: true,

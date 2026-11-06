@@ -1,4 +1,4 @@
-// FILE: VetStockDatabase/supabase.js
+// FILE: VetStockDatabase/Supabase.js
 // PURPOSE: Supabase PostgreSQL connection for the VetStock backend
 
 import dotenv from "dotenv";
@@ -18,10 +18,17 @@ if (!SUPABASE_SECRET_KEY) {
 }
 
 // SERVER ONLY
-// This key has elevated privileges and must NEVER be exposed to React/browser code.
+// Never expose this key to React or browser code.
 export const supabase = createClient(
     SUPABASE_URL,
-    SUPABASE_SECRET_KEY
+    SUPABASE_SECRET_KEY,
+    {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+            detectSessionInUrl: false
+        }
+    }
 );
 
 console.log("Supabase PostgreSQL client initialized.");

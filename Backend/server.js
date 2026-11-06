@@ -12,7 +12,9 @@ import alertRoutes from "./Routes/Alerts.js";
 import healthRecordsRoutes from "./Routes/Health_Records.js";
 import patientRoutes from "./Routes/Patients.js";
 import reportsRoutes from "./Routes/Reports.js";
+import auditLogsRoutes from "./Routes/Audit_Logs.js";
 import forecastRoutes from "./Routes/Forecast.js";
+
 
 
 dotenv.config();
@@ -60,6 +62,7 @@ app.use("/api/health-records", healthRecordsRoutes);
 app.use("/api/patients", patientRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/alerts", alertRoutes);
+app.use("/api/audit-logs", auditLogsRoutes);
 
 app.use(
     "/api/forecast-ai",

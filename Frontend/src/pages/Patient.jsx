@@ -270,6 +270,55 @@ export default function Patient() {
     }
   };
 
+
+  // Delete (deactivate) a patient after confirmation
+  const handleDeletePatient = async (pat) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${pat.patient_name}?\n\n` +
+      'This patient will be removed from the active patient list, ' +
+      'but their historical records will be preserved.\n\n' +
+      'Click OK to continue or Cancel to keep this patient.'
+    );
+
+    // Stop if the user clicks Cancel
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(
+        `http://localhost:3001/api/patients/${encodeURIComponent(pat.patient_id)}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || 'Failed to delete patient.'
+        );
+      }
+
+      // Close the details modal if this patient is currently selected
+      if (selectedPatient?.patient_id === pat.patient_id) {
+        setSelectedPatient(null);
+      }
+
+      // Refresh patients and automatically update the counters
+      await fetchPatients();
+
+      alert(`${pat.patient_name} was successfully removed from the active patient list.`);
+
+    } catch (err) {
+      console.error('Error deleting patient:', err);
+      alert(err.message || 'Failed to delete patient. Please try again.');
+    }
+  };
+
+
   const filteredPatients = patients.filter(p => {
 
     const name = p.patient_name || '';
@@ -286,59 +335,74 @@ export default function Patient() {
   });
 
   const getAppointmentStatus = (pat) => {
-  const savedStatus = String(
-    pat.appointment_status || 'Scheduled'
-  ).trim().toLowerCase();
+    const savedStatus = String(
+      pat.appointment_status || 'Scheduled'
+    ).trim().toLowerCase();
 
-  // Completed: keep the existing green status
-  if (savedStatus === 'completed') {
-    return 'Completed';
-  }
+    // Completed: keep the existing green status
+    if (savedStatus === 'completed') {
+      return 'Completed';
+    }
 
-  // Cancelled: keep the existing red status
-  if (
-    savedStatus === 'cancelled' ||
-    savedStatus === 'canceled'
-  ) {
-    return 'Cancelled';
-  }
-
-  // Nonappearance: gray status
-  if (
-    savedStatus === 'nonappearance' ||
-    savedStatus === 'non-appearance'
-  ) {
-    return 'Nonappearance';
-  }
-
-  // Check whether a scheduled appointment has passed
-  if (savedStatus === 'scheduled' && pat.appointment_date) {
-    const date = String(pat.appointment_date).slice(0, 10);
-
-    // If no time was entered, use the end of the appointment date
-    const time = pat.appointment_time
-      ? String(pat.appointment_time).slice(0, 8)
-      : '23:59:59';
-
-    const appointmentTimestamp = new Date(
-      `${date}T${time}`
-    ).getTime();
-
+    // Cancelled: keep the existing red status
     if (
-      Number.isFinite(appointmentTimestamp) &&
-      appointmentTimestamp < currentTime
+      savedStatus === 'cancelled' ||
+      savedStatus === 'canceled'
+    ) {
+      return 'Cancelled';
+    }
+
+    // Nonappearance: gray status
+    if (
+      savedStatus === 'nonappearance' ||
+      savedStatus === 'non-appearance'
     ) {
       return 'Nonappearance';
     }
-  }
 
-  // Scheduled: keep the existing yellow status
-  return 'Scheduled';
-};
+    // Check whether a scheduled appointment has passed
+    if (savedStatus === 'scheduled' && pat.appointment_date) {
+      const date = String(pat.appointment_date).slice(0, 10);
 
-  // Count only appointments still scheduled
-  const scheduledCount = patients.filter(
+      // If no time was entered, use the end of the appointment date
+      const time = pat.appointment_time
+        ? String(pat.appointment_time).slice(0, 8)
+        : '23:59:59';
+
+      const appointmentTimestamp = new Date(
+        `${date}T${time}`
+      ).getTime();
+
+      if (
+        Number.isFinite(appointmentTimestamp) &&
+        appointmentTimestamp < currentTime
+      ) {
+        return 'Nonappearance';
+      }
+    }
+
+    // Scheduled: keep the existing yellow status
+    return 'Scheduled';
+  };
+
+  // Count only patients with an actual appointment date
+  const appointmentPatients = patients.filter(
+    p => p.appointment_date
+  );
+
+  // Count scheduled appointments
+  const scheduledCount = appointmentPatients.filter(
     p => getAppointmentStatus(p) === 'Scheduled'
+  ).length;
+
+  // Count nonappearance appointments
+  const nonappearanceCount = appointmentPatients.filter(
+    p => getAppointmentStatus(p) === 'Nonappearance'
+  ).length;
+
+  // Count cancelled appointments
+  const cancelledCount = appointmentPatients.filter(
+    p => getAppointmentStatus(p) === 'Cancelled'
   ).length;
 
   return (
@@ -355,23 +419,56 @@ export default function Patient() {
       </div>
 
 
+
       {/* Quick Stats */}
       <div className="patient-stats">
+
+        {/* Total Patients */}
         <div className="stat-card">
-          <div className="stat-icon purple"><i className="fa-solid fa-shield-dog"></i></div>
+          <div className="stat-icon purple">
+            <i className="fa-solid fa-shield-dog"></i>
+          </div>
           <div>
             <h3>{patients.length}</h3>
             <p>Total Patients</p>
           </div>
         </div>
+
+        {/* Scheduled Appointments */}
         <div className="stat-card">
-          <div className="stat-icon green"><i className="fa-solid fa-calendar-check"></i></div>
+          <div className="stat-icon green">
+            <i className="fa-solid fa-calendar-check"></i>
+          </div>
           <div>
             <h3>{scheduledCount}</h3>
-            <p>Active Appointments</p>
+            <p>Scheduled Appointments</p>
           </div>
         </div>
+
+        {/* Nonappearance */}
+        <div className="stat-card">
+          <div className="stat-icon orange">
+            <i className="fa-solid fa-user-xmark"></i>
+          </div>
+          <div>
+            <h3>{nonappearanceCount}</h3>
+            <p>Nonappearance</p>
+          </div>
+        </div>
+
+        {/* Cancelled Appointments */}
+        <div className="stat-card">
+          <div className="stat-icon red">
+            <i className="fa-solid fa-calendar-xmark"></i>
+          </div>
+          <div>
+            <h3>{cancelledCount}</h3>
+            <p>Cancelled Appointments</p>
+          </div>
+        </div>
+
       </div>
+
 
       {/* Toolbar: Search and View Toggle */}
       <div className="patient-toolbar">
@@ -467,31 +564,6 @@ export default function Patient() {
                         marginTop: '12px'
                       }}
                     >
-                      {/* Edit */}
-                      <button
-                        type="button"
-                        title="Edit Patient"
-                        aria-label="Edit Patient"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditModal(pat);
-                        }}
-                        style={{
-                          width: '36px',
-                          height: '36px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          backgroundColor: '#0d9488',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <i className="fa-solid fa-pen"></i>
-                      </button>
-
                       {/* Complete */}
                       {pat.appointment_date && status === 'Scheduled' && (
                         <button
@@ -545,6 +617,44 @@ export default function Patient() {
                           <i className="fa-solid fa-xmark"></i>
                         </button>
                       )}
+                      {/* Edit */}
+                      <button
+                        type="button"
+                        title="Edit Patient"
+                        aria-label="Edit Patient"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditModal(pat);
+                        }}
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: '#0d9488',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <i className="fa-solid fa-pen"></i>
+                      </button>
+
+                      {/* Delete */}
+                      <button
+                        type="button"
+                        title="Delete Patient"
+                        aria-label="Delete Patient"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeletePatient(pat);
+                        }}
+                        className="delete-patient-btn"
+                      >
+                        <i className="fa-solid fa-trash"></i>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -602,30 +712,6 @@ export default function Patient() {
                             gap: '8px'
                           }}
                         >
-                          {/* Edit */}
-                          <button
-                            type="button"
-                            title="Edit Patient"
-                            aria-label="Edit Patient"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openEditModal(pat);
-                            }}
-                            style={{
-                              width: '36px',
-                              height: '36px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              backgroundColor: '#0d9488',
-                              color: '#ffffff',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <i className="fa-solid fa-pen"></i>
-                          </button>
 
                           {/* Complete */}
                           {pat.appointment_date && status === 'Scheduled' && (
@@ -680,6 +766,44 @@ export default function Patient() {
                               <i className="fa-solid fa-xmark"></i>
                             </button>
                           )}
+                          {/* Edit */}
+                          <button
+                            type="button"
+                            title="Edit Patient"
+                            aria-label="Edit Patient"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditModal(pat);
+                            }}
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: '#0d9488',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <i className="fa-solid fa-pen"></i>
+                          </button>
+
+                          {/* Delete */}
+                          <button
+                            type="button"
+                            title="Delete Patient"
+                            aria-label="Delete Patient"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeletePatient(pat);
+                            }}
+                            className="delete-patient-btn"
+                          >
+                            <i className="fa-solid fa-trash"></i>
+                          </button>
                         </div>
                       </td>
                     </tr>

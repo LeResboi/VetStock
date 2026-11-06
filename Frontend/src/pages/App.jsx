@@ -10,6 +10,8 @@ import '../App.css';
 import './Auth.css';
 import illustrationImg from '../assets/Icon.png';
 
+
+
 // ============================================================
 // 1. LOGIN / REGISTER COMPONENT
 // ============================================================
@@ -23,6 +25,8 @@ export default function AuthApp() {
     const [lastName, setLastName] = useState('');
     const [role, setRole] = useState('');
     const [error, setError] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const navigate = useNavigate();
 
@@ -54,8 +58,7 @@ export default function AuthApp() {
 
         try {
             const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
+                method: 'POST', headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload)
@@ -70,9 +73,16 @@ export default function AuthApp() {
             }
 
             if (isRegister) {
-                alert('Account created successfully! Please log in.');
+                alert(
+                    data.message ||
+                    'Registration request submitted. Please wait for Administrator approval.'
+                );
 
                 setIsRegister(false);
+                setFirstName('');
+                setLastName('');
+                setEmail('');
+                setRole('');
                 setPassword('');
                 setConfirmPassword('');
             } else {
@@ -179,9 +189,6 @@ export default function AuthApp() {
                                     <option value="">
                                         Select Role
                                     </option>
-                                    <option value="Administrator">
-                                        Administrator
-                                    </option>
                                     <option value="Inventory Staff">
                                         Inventory Staff
                                     </option>
@@ -195,29 +202,37 @@ export default function AuthApp() {
                             </div>
                         )}
 
-                        <div className="input-group">
+                        <div className="input-group password-group">
                             <input
-                                type="password"
+                                type={showPassword ? 'text' : 'password'}
                                 placeholder="Password"
                                 value={password}
-                                onChange={(e) =>
-                                    setPassword(e.target.value)
-                                }
+                                onChange={(e) => setPassword(e.target.value)}
                                 required
                             />
+
+                            <i
+                                className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'} password-toggle`}
+                                onClick={() => setShowPassword(!showPassword)}
+                                title={showPassword ? 'Hide Password' : 'Show Password'}
+                            ></i>
                         </div>
 
                         {isRegister && (
-                            <div className="input-group">
+                            <div className="input-group password-group">
                                 <input
-                                    type="password"
+                                    type={showConfirmPassword ? 'text' : 'password'}
                                     placeholder="Confirm Password"
                                     value={confirmPassword}
-                                    onChange={(e) =>
-                                        setConfirmPassword(e.target.value)
-                                    }
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
                                     required
                                 />
+
+                                <i
+                                    className={`fa-solid ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'} password-toggle`}
+                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    title={showConfirmPassword ? 'Hide Password' : 'Show Password'}
+                                ></i>
                             </div>
                         )}
 
@@ -275,7 +290,23 @@ export function MainLayout() {
     const currentPath = location.pathname.toLowerCase();
 
     const [userName, setUserName] = useState('Admin User');
-    const [userRole, setUserRole] = useState('Administrator');
+
+    const [userRole, setUserRole] = useState(() => {
+        try {
+            const storedUser = JSON.parse(
+                localStorage.getItem('user') || '{}'
+            );
+
+            return (
+                storedUser.roles?.role_name ||
+                storedUser.role ||
+                storedUser.role_name ||
+                ''
+            );
+        } catch {
+            return '';
+        }
+    });
 
     useEffect(() => {
         try {
@@ -334,13 +365,16 @@ export function MainLayout() {
         <div className="app">
 
             <aside
-                className={`sidebar ${
-                    sidebarCollapsed ? 'collapsed' : ''
-                }`}
+                className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''
+                    }`}
             >
                 <div className="sidebar-header">
                     <div className="sidebar-logo-icon">
-                        <i className="fa-solid fa-notes-medical"></i>
+                        <img
+                            src={illustrationImg}
+                            alt="VetStock Logo"
+                            className="logo-img"
+                        />
                     </div>
 
                     <div className="sidebar-brand-text">
@@ -356,11 +390,10 @@ export function MainLayout() {
                         </div>
 
                         <button
-                            className={`sidebar-menu-item ${
-                                currentPath === '/dashboard'
-                                    ? 'active'
-                                    : ''
-                            }`}
+                            className={`sidebar-menu-item ${currentPath === '/dashboard'
+                                ? 'active'
+                                : ''
+                                }`}
                             onClick={() => navigate('/Dashboard')}
                         >
                             <i className="fa-solid fa-chart-pie"></i>
@@ -370,11 +403,10 @@ export function MainLayout() {
                         </button>
 
                         <button
-                            className={`sidebar-menu-item ${
-                                currentPath === '/inventory'
-                                    ? 'active'
-                                    : ''
-                            }`}
+                            className={`sidebar-menu-item ${currentPath === '/inventory'
+                                ? 'active'
+                                : ''
+                                }`}
                             onClick={() => navigate('/Inventory')}
                         >
                             <i className="fa-solid fa-boxes-stacked"></i>
@@ -384,11 +416,10 @@ export function MainLayout() {
                         </button>
 
                         <button
-                            className={`sidebar-menu-item ${
-                                currentPath === '/transactions'
-                                    ? 'active'
-                                    : ''
-                            }`}
+                            className={`sidebar-menu-item ${currentPath === '/transactions'
+                                ? 'active'
+                                : ''
+                                }`}
                             onClick={() => navigate('/Transactions')}
                         >
                             <i className="fa-solid fa-right-left"></i>
@@ -398,39 +429,10 @@ export function MainLayout() {
                         </button>
 
                         <button
-                            className={`sidebar-menu-item ${
-                                currentPath === '/healthrecords'
-                                    ? 'active'
-                                    : ''
-                            }`}
-                            onClick={() => navigate('/HealthRecords')}
-                        >
-                            <i className="fa-solid fa-file-medical"></i>
-                            <span className="menu-label">
-                                Health Records
-                            </span>
-                        </button>
-
-                        <button
-                            className={`sidebar-menu-item ${
-                                currentPath === '/forecast'
-                                    ? 'active'
-                                    : ''
-                            }`}
-                            onClick={() => navigate('/Forecast')}
-                        >
-                            <i className="fa-solid fa-chart-line"></i>
-                            <span className="menu-label">
-                                Forecast
-                            </span>
-                        </button>
-
-                        <button
-                            className={`sidebar-menu-item ${
-                                currentPath === '/patient'
-                                    ? 'active'
-                                    : ''
-                            }`}
+                            className={`sidebar-menu-item ${currentPath === '/patient'
+                                ? 'active'
+                                : ''
+                                }`}
                             onClick={() => navigate('/Patient')}
                         >
                             <i className="fa-solid fa-hospital-user"></i>
@@ -440,11 +442,65 @@ export function MainLayout() {
                         </button>
 
                         <button
-                            className={`sidebar-menu-item ${
-                                currentPath === '/reports'
-                                    ? 'active'
-                                    : ''
-                            }`}
+                            className={`sidebar-menu-item ${currentPath === '/healthrecords'
+                                ? 'active'
+                                : ''
+                                }`}
+                            onClick={() => navigate('/HealthRecords')}
+                        >
+                            <i className="fa-solid fa-file-medical"></i>
+                            <span className="menu-label">
+                                Health Records
+                            </span>
+                        </button>
+
+                        <button
+                            className={`sidebar-menu-item ${currentPath === '/forecast'
+                                ? 'active'
+                                : ''
+                                }`}
+                            onClick={() => navigate('/Forecast')}
+                        >
+                            <i className="fa-solid fa-chart-line"></i>
+                            <span className="menu-label">
+                                Forecast
+                            </span>
+                        </button>
+
+                        {/* USER MANAGEMENT - ADMINISTRATOR ONLY */}
+                        {userRole?.trim().toLowerCase() === 'administrator' && (
+                            <button
+                                className={`sidebar-menu-item ${currentPath === '/usermanagement' ? 'active' : ''
+                                    }`}
+                                onClick={() => navigate('/UserManagement')}
+                            >
+                                <i className="fa-solid fa-users-gear"></i>
+
+                                <span className="menu-label">
+                                    User Management
+                                </span>
+                            </button>
+                        )}
+
+                        {userRole?.trim().toLowerCase() === 'administrator' && (
+                            <button
+                                className={`sidebar-menu-item ${currentPath === '/audit_logs' ? 'active' : ''
+                                    }`}
+                                onClick={() => navigate('/Audit_Logs')}
+                            >
+                                <i className="fa-solid fa-clipboard-list"></i>
+
+                                <span className="menu-label">
+                                    Audit Logs
+                                </span>
+                            </button>
+                        )}
+
+                        <button
+                            className={`sidebar-menu-item ${currentPath === '/reports'
+                                ? 'active'
+                                : ''
+                                }`}
                             onClick={() => navigate('/Reports')}
                         >
                             <i className="fa-solid fa-file-lines"></i>
@@ -454,11 +510,10 @@ export function MainLayout() {
                         </button>
 
                         <button
-                            className={`sidebar-menu-item ${
-                                currentPath === '/notifications'
-                                    ? 'active'
-                                    : ''
-                            }`}
+                            className={`sidebar-menu-item ${currentPath === '/notifications'
+                                ? 'active'
+                                : ''
+                                }`}
                             onClick={() => navigate('/Notifications')}
                         >
                             <i className="fa-solid fa-bell"></i>
@@ -496,9 +551,8 @@ export function MainLayout() {
             </aside>
 
             <main
-                className={`main ${
-                    sidebarCollapsed ? 'expanded' : ''
-                }`}
+                className={`main ${sidebarCollapsed ? 'expanded' : ''
+                    }`}
             >
                 <header className="topbar">
                     <button
@@ -555,7 +609,15 @@ export function MainLayout() {
                 </header>
 
                 <div className="content">
-                    <Outlet />
+                    {(
+                        currentPath === '/audit_logs' ||
+                        currentPath === '/usermanagement'
+                    ) &&
+                        userRole?.trim().toLowerCase() !== 'administrator' ? (
+                        <Navigate to="/Dashboard" replace />
+                    ) : (
+                        <Outlet />
+                    )}
                 </div>
             </main>
         </div>

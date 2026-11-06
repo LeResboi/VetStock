@@ -6,11 +6,263 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
 import { supabase } from "../VetStockDatabase/Supabase.js";
+import { createAuditLog } from "../Utils/AuditLogger.js";
+import { authenticateToken } from "../Middleware/Authentication.js";
+import { requireRole } from "../Middleware/Roles.js";
 
 const router = express.Router();
 
 // ============================================================
-// REGISTER
+// GET USERS - ADMINISTRATOR ONLY
+// ============================================================
+
+router.get(
+    "/users",
+    authenticateToken,
+    requireRole("Administrator"),
+    async (req, res) => {
+        try {
+            const { data, error } = await supabase
+                .from("users")
+                .select(`
+                    user_id,
+                    first_name,
+                    last_name,
+                    email,
+                    is_active,
+                    created_at,
+                    roles (
+                        role_name
+                    )
+                `)
+                .eq("clinic_id", req.user.clinic_id)
+                .order("created_at", { ascending: false });
+
+            if (error) {
+                throw error;
+            }
+
+            return res.json({
+                success: true,
+                count: data.length,
+                data
+            });
+
+        } catch (error) {
+            console.error("Get users error:", error.message);
+
+            return res.status(500).json({
+                success: false,
+                message: "Failed to retrieve users."
+            });
+        }
+    }
+);
+
+// ============================================================
+// GET PENDING REGISTRATION REQUESTS
+// ADMINISTRATOR ONLY
+// ============================================================
+
+router.get(
+    "/registration-requests",
+    authenticateToken,
+    requireRole("Administrator"),
+    async (req, res) => {
+        try {
+            const { data: requests, error } = await supabase
+                .from("user_registration_requests")
+                .select(`
+                    request_id,
+                    clinic_id,
+                    first_name,
+                    last_name,
+                    email,
+                    requested_role_id,
+                    status,
+                    created_at
+                `)
+                .eq("clinic_id", req.user.clinic_id)
+                .eq("status", "PENDING")
+                .order("created_at", { ascending: false });
+
+            if (error) throw error;
+
+            // Retrieve the requested role names
+            const roleIds = [
+                ...new Set(requests.map(request => request.requested_role_id))
+            ];
+
+            let roles = [];
+
+            if (roleIds.length > 0) {
+                const { data: roleData, error: roleError } =
+                    await supabase
+                        .from("roles")
+                        .select("role_id, role_name")
+                        .in("role_id", roleIds);
+
+                if (roleError) throw roleError;
+
+                roles = roleData || [];
+            }
+
+            const roleMap = new Map(
+                roles.map(role => [role.role_id, role.role_name])
+            );
+
+            const formattedRequests = requests.map(request => ({
+                ...request,
+                requested_role: {
+                    role_name:
+                        roleMap.get(request.requested_role_id) || "Unknown"
+                }
+            }));
+
+            return res.json({
+                success: true,
+                count: formattedRequests.length,
+                data: formattedRequests
+            });
+
+        } catch (error) {
+            console.error("Get registration requests error:", error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Unable to retrieve registration requests."
+            });
+        }
+    }
+);
+
+// ============================================================
+// APPROVE REGISTRATION REQUEST
+// ADMINISTRATOR ONLY
+// ============================================================
+
+router.post(
+    "/registration-requests/:requestId/approve",
+    authenticateToken,
+    requireRole("Administrator"),
+    async (req, res) => {
+        try {
+            const { requestId } = req.params;
+
+            const approvedRole =
+                typeof req.body.approved_role === "string"
+                    ? req.body.approved_role.trim()
+                    : "";
+
+            const allowedRoles = [
+                "Administrator",
+                "Clinic Manager",
+                "Inventory Staff",
+                "Veterinarian"
+            ];
+
+            if (!allowedRoles.includes(approvedRole)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid assigned role."
+                });
+            }
+
+            // Find the pending request in this Administrator's clinic
+            const { data: request, error: requestError } =
+                await supabase
+                    .from("user_registration_requests")
+                    .select(`
+                        request_id,
+                        clinic_id,
+                        first_name,
+                        last_name,
+                        email,
+                        status
+                    `)
+                    .eq("request_id", requestId)
+                    .eq("clinic_id", req.user.clinic_id)
+                    .eq("status", "PENDING")
+                    .maybeSingle();
+
+            if (requestError) throw requestError;
+
+            if (!request) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Pending registration request not found."
+                });
+            }
+
+            // Find the final assigned role
+            const { data: roleData, error: roleError } =
+                await supabase
+                    .from("roles")
+                    .select("role_id, role_name")
+                    .eq("role_name", approvedRole)
+                    .single();
+
+            if (roleError || !roleData) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Selected role was not found."
+                });
+            }
+
+            // Create the account and approve the request atomically
+            const { data: newUserId, error: approvalError } =
+                await supabase.rpc(
+                    "approve_user_registration_request",
+                    {
+                        p_request_id: request.request_id,
+                        p_approved_role_id: roleData.role_id,
+                        p_reviewed_by: req.user.user_id
+                    }
+                );
+
+            if (approvalError) {
+                console.error("Approval error:", approvalError);
+
+                return res.status(400).json({
+                    success: false,
+                    message: approvalError.message
+                });
+            }
+
+            // Record the Administrator who approved the request
+            await createAuditLog(req, {
+                action: "USER_APPROVED",
+                targetTable: "users",
+                targetId: newUserId,
+                details: {
+                    description:
+                        `Approved account for ${request.first_name} ${request.last_name}`,
+                    request_id: request.request_id,
+                    email: request.email,
+                    assigned_role: roleData.role_name
+                }
+            });
+
+            return res.json({
+                success: true,
+                message: "Registration request approved successfully.",
+                user_id: newUserId
+            });
+
+        } catch (error) {
+            console.error("Approve request error:", error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Unable to approve registration request."
+            });
+        }
+    }
+);
+
+// ============================================================
+// SUBMIT REGISTRATION REQUEST
+// PUBLIC - ACCOUNT REQUIRES ADMINISTRATOR APPROVAL
 // ============================================================
 
 router.post("/register", async (req, res) => {
@@ -24,13 +276,33 @@ router.post("/register", async (req, res) => {
         } = req.body;
 
         // ----------------------------------------------------
-        // VALIDATION
+        // VALIDATE INPUT
         // ----------------------------------------------------
 
-        if (!email || !password) {
+        const normalizedEmail =
+            typeof email === "string"
+                ? email.trim().toLowerCase()
+                : "";
+
+        const firstName =
+            typeof first_name === "string" ? first_name.trim() : "";
+
+        const lastName =
+            typeof last_name === "string" ? last_name.trim() : "";
+
+        const requestedRole =
+            typeof role === "string" ? role.trim() : "";
+
+        if (
+            !normalizedEmail ||
+            !password ||
+            !firstName ||
+            !lastName ||
+            !requestedRole
+        ) {
             return res.status(400).json({
                 success: false,
-                message: "Email and password are required."
+                message: "All registration fields are required."
             });
         }
 
@@ -42,48 +314,109 @@ router.post("/register", async (req, res) => {
         }
 
         // ----------------------------------------------------
-        // CHECK EXISTING USER
+        // VALIDATE REQUESTED ROLE
+        // Applicants cannot request Administrator access.
+        // The Administrator assigns the final role on approval.
         // ----------------------------------------------------
 
-        const { data: existingUser, error: existingError } =
+        const allowedRequestedRoles = [
+            "Clinic Manager",
+            "Inventory Staff",
+            "Administrator",
+            "Veterinarian"
+        ];
+
+        if (!allowedRequestedRoles.includes(requestedRole)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid requested role."
+            });
+        }
+
+        // ----------------------------------------------------
+        // CHECK IF EMAIL ALREADY HAS AN ACCOUNT
+        // ----------------------------------------------------
+
+        const { data: existingUser, error: userError } =
             await supabase
                 .from("users")
                 .select("user_id")
-                .eq("email", email)
+                .ilike("email", normalizedEmail)
                 .maybeSingle();
 
-        if (existingError) {
-            return res.status(500).json({
-                success: false,
-                message: existingError.message
-            });
+        if (userError) {
+            throw userError;
         }
 
         if (existingUser) {
             return res.status(409).json({
                 success: false,
-                message: "Email is already registered."
+                message: "This email already has a VetStock account."
             });
         }
 
         // ----------------------------------------------------
-        // FIND ROLE ID
+        // CHECK EXISTING PENDING REQUEST
         // ----------------------------------------------------
-        console.log("Selected role received by backend:", role);
 
-        const { data: roleData, error: roleError } = await supabase
-            .from("roles")
-            .select("role_id")
-            .eq("role_name", role)
-            .single();
+        const { data: existingRequest, error: requestError } =
+            await supabase
+                .from("user_registration_requests")
+                .select("request_id")
+                .ilike("email", normalizedEmail)
+                .eq("status", "PENDING")
+                .maybeSingle();
+
+        if (requestError) {
+            throw requestError;
+        }
+
+        if (existingRequest) {
+            return res.status(409).json({
+                success: false,
+                message: "A registration request for this email is already pending."
+            });
+        }
+
+        // ----------------------------------------------------
+        // FIND REQUESTED ROLE
+        // ----------------------------------------------------
+
+        const { data: roleData, error: roleError } =
+            await supabase
+                .from("roles")
+                .select("role_id")
+                .eq("role_name", requestedRole)
+                .single();
 
         if (roleError || !roleData) {
             return res.status(400).json({
                 success: false,
-                message: "Selected role was not found."
+                message: "The selected role was not found."
             });
         }
 
+        // ----------------------------------------------------
+        // FIND ACTIVE CLINIC
+        // This follows your existing single-clinic setup.
+        // ----------------------------------------------------
+
+        const { data: clinic, error: clinicError } =
+            await supabase
+                .from("clinics")
+                .select("clinic_id")
+                .eq("is_active", true)
+                .limit(1)
+                .maybeSingle();
+
+        if (clinicError || !clinic) {
+            console.error("Clinic lookup error:", clinicError);
+
+            return res.status(400).json({
+                success: false,
+                message: "No active clinic is configured."
+            });
+        }
 
         // ----------------------------------------------------
         // HASH PASSWORD
@@ -92,83 +425,75 @@ router.post("/register", async (req, res) => {
         const passwordHash = await bcrypt.hash(password, 12);
 
         // ----------------------------------------------------
-        // GET THE SINGLE CLINIC
+        // SAVE REGISTRATION REQUEST
+        // DO NOT CREATE A USER ACCOUNT YET
         // ----------------------------------------------------
 
-        const { data: clinic, error: clinicError } = await supabase
-            .from("clinics")
-            .select("clinic_id")
-            .limit(1)
-            .maybeSingle();
+        const { data: registrationRequest, error: insertError } =
+            await supabase
+                .from("user_registration_requests")
+                .insert({
+                    clinic_id: clinic.clinic_id,
+                    first_name: firstName,
+                    last_name: lastName,
+                    email: normalizedEmail,
+                    password_hash: passwordHash,
+                    requested_role_id: roleData.role_id,
+                    status: "PENDING"
+                })
+                .select(`
+                    request_id,
+                    first_name,
+                    last_name,
+                    email,
+                    status,
+                    created_at
+                `)
+                .single();
 
-        if (clinicError) {
-            console.error("Clinic lookup error:", clinicError);
+        if (insertError) {
+            if (insertError.code === "23505") {
+                return res.status(409).json({
+                    success: false,
+                    message: "A pending request already exists for this email."
+                });
+            }
 
-            return res.status(500).json({
-                success: false,
-                message: "Unable to find clinic."
-            });
+            throw insertError;
         }
 
-        if (!clinic) {
-            return res.status(500).json({
-                success: false,
-                message: "No clinic is configured."
-            });
-        }
+        // RECORD REGISTRATION REQUEST
+        await createAuditLog(req, {
+            action: "REGISTRATION_REQUESTED",
+            targetTable: "user_registration_requests",
+            targetId: registrationRequest.request_id,
+            details: {
+                description:
+                    `Registration request from ${firstName} ${lastName}`,
+                email: normalizedEmail,
+                requested_role: requestedRole
+            }
+        });
 
         // ----------------------------------------------------
-        // CREATE USER
+        // RETURN PENDING REQUEST
         // ----------------------------------------------------
 
-        const { data: user, error } = await supabase
-            .from("users")
-            .insert({
-                email,
-                password_hash: passwordHash,
-                first_name: first_name || null,
-                last_name: last_name || null,
-                clinic_id: clinic.clinic_id,
-                role_id: roleData.role_id,
-                is_active: true
-            })
-            .select(`
-                user_id,
-                email,
-                first_name,
-                last_name,
-                clinic_id,
-                role_id,
-                is_active,
-                created_at
-            `)
-            .single();
-
-        if (error) {
-            console.error("Registration error:", error);
-
-            return res.status(500).json({
-                success: false,
-                message: "Unable to create account."
-            });
-        }
-
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
-            message: "Account created successfully.",
-            user
+            message: "Registration request submitted successfully. Please wait for Administrator approval.",
+            data: registrationRequest
         });
 
     } catch (error) {
-        console.error("Register error:", error);
+        console.error("Registration request error:", error);
 
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
-            message: "Internal server error."
+            message: "Unable to submit registration request."
         });
     }
 });
-
 // ============================================================
 // LOGIN
 // ============================================================
@@ -283,6 +608,16 @@ router.post("/login", async (req, res) => {
 
         // Never return password_hash
         delete user.password_hash;
+
+        await createAuditLog(req, {
+            userId: user.user_id,
+            action: "LOGIN",
+            targetTable: "users",
+            targetId: user.user_id,
+            details: {
+                description: "User logged in successfully."
+            }
+        });
 
         res.json({
             success: true,

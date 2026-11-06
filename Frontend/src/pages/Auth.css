@@ -79,7 +79,7 @@ body {
   margin-bottom: 15px;
 }
 
-.input-group input, 
+.input-group input,
 .input-group select {
   width: 100%;
   padding: 12px 15px;
@@ -92,7 +92,7 @@ body {
   box-sizing: border-box;
 }
 
-.input-group input:focus, 
+.input-group input:focus,
 .input-group select:focus {
   border-color: #00796b;
   background-color: #ffffff;
@@ -143,6 +143,7 @@ body {
   margin-bottom: 15px;
   text-align: center;
 }
+
 .input-group select {
   color: #646262;
 }
@@ -150,6 +151,33 @@ body {
 .input-group select option {
   color: #646262;
 }
+
 .input-group input {
   color: #646462;
+}
+
+/* Password visibility toggle */
+.password-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-group input {
+  width: 100%;
+  padding-right: 45px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 15px;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.35);
+  font-size: 16px;
+  z-index: 2;
+  transition: color 0.2s ease;
+}
+
+.password-toggle:hover {
+  color: rgba(0, 121, 107, 0.8);
 }
