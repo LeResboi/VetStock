@@ -9,6 +9,50 @@ import { requireRole } from "../Middleware/Roles.js";
 const router = express.Router();
 
 // ======================================================
+// VERIFY HEALTH RECORD BELONGS TO USER'S CLINIC
+// ======================================================
+async function getClinicHealthRecord(recordId, clinicId) {
+    const { data: record, error: recordError } = await supabase
+        .from("health_records")
+        .select("record_id, patient_id")
+        .eq("record_id", recordId)
+        .maybeSingle();
+
+    if (recordError) {
+        throw recordError;
+    }
+
+    if (!record) {
+        return {
+            status: 404,
+            message: "Health record not found."
+        };
+    }
+
+    const { data: patient, error: patientError } = await supabase
+        .from("patients")
+        .select("clinic_id")
+        .eq("patient_id", record.patient_id)
+        .maybeSingle();
+
+    if (patientError) {
+        throw patientError;
+    }
+
+    if (!patient || patient.clinic_id !== clinicId) {
+        return {
+            status: 403,
+            message: "Access denied."
+        };
+    }
+
+    return {
+        record,
+        status: 200
+    };
+}
+
+// ======================================================
 // GET ALL HEALTH RECORDS
 // GET /api/health-records
 // ======================================================
@@ -53,9 +97,40 @@ router.get("/", authenticateToken, async (req, res) => {
             ])
         );
 
+        // Get all scheduled follow-up appointments for these health records
+        const recordIds = data.map(record => record.record_id);
+
+        const { data: followUpAppointments, error: followUpError } =
+            await supabase
+                .from("health_record_followups")
+                .select("record_id, follow_up_date")
+                .in("record_id", recordIds)
+                .eq("status", "scheduled")
+                .order("follow_up_date", { ascending: true });
+
+        if (followUpError) {
+            throw followUpError;
+        }
+
+        // Find the nearest scheduled appointment for each health record
+        const nextFollowUpMap = new Map();
+
+        for (const appointment of followUpAppointments || []) {
+            if (!nextFollowUpMap.has(appointment.record_id)) {
+                nextFollowUpMap.set(
+                    appointment.record_id,
+                    appointment.follow_up_date
+                );
+            }
+        }
+
+        // Attach the next scheduled appointment to each health record
         const dataWithMrn = data.map(record => ({
             ...record,
-            mrn_number: patientMrnMap.get(record.patient_id)
+            mrn_number: patientMrnMap.get(record.patient_id),
+
+            // Use appointment history instead of the old follow-up date
+            follow_up_date: nextFollowUpMap.get(record.record_id) || null
         }));
 
         return res.json({
@@ -93,8 +168,7 @@ router.get("/:id", authenticateToken, async (req, res) => {
             });
         }
 
-        // Check patient belongs to clinic
-        // Confirm patient belongs to the clinic
+        // Check whether the associated patient belongs to this clinic
         const { data: patient, error: patientError } = await supabase
             .from("patients")
             .select("clinic_id")
@@ -151,6 +225,7 @@ router.post(
                 diagnosis,
                 symptoms,
                 treatment,
+                follow_up_date,
                 notes
             } = req.body;
 
@@ -162,30 +237,17 @@ router.post(
             }
 
             // Confirm patient belongs to the clinic
-            const cleanPatientId = patient_id.trim().toUpperCase();
-
-            const match = cleanPatientId.match(/^MRN-(\d+)-A$/);
-
-            if (!match) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Invalid Patient ID format. Use MRN-00001-A."
-                });
-            }
-
-            const mrnNumber = Number(match[1]);
-
             const { data: patient, error: patientError } = await supabase
                 .from("patients")
                 .select("patient_id")
-                .eq("mrn_number", mrnNumber)
+                .eq("patient_id", patient_id)
                 .eq("clinic_id", req.user.clinic_id)
                 .single();
 
             if (patientError || !patient) {
                 return res.status(404).json({
                     success: false,
-                    message: "Patient not found."
+                    message: "Patient not found in your clinic."
                 });
             }
 
@@ -199,6 +261,7 @@ router.post(
                         ? [symptoms]
                         : null,
                     treatment_notes: treatment || null,
+                    follow_up_date: follow_up_date || null,
                     notes: notes || null,
                     record_date: new Date().toISOString()
                 }])
@@ -207,6 +270,32 @@ router.post(
 
             if (error) {
                 throw error;
+            }
+
+            // Create the initial follow-up appointment if a date was provided
+            if (follow_up_date) {
+                const { error: followUpError } = await supabase
+                    .from("health_record_followups")
+                    .insert([{
+                        record_id: data.record_id,
+                        follow_up_date,
+                        status: "scheduled",
+                        notes: null
+                    }]);
+
+                if (followUpError) {
+                    // Remove the health record if its initial appointment cannot be saved
+                    const { error: rollbackError } = await supabase
+                        .from("health_records")
+                        .delete()
+                        .eq("record_id", data.record_id);
+
+                    if (rollbackError) {
+                        console.error("Health record rollback failed:", rollbackError);
+                    }
+
+                    throw followUpError;
+                }
             }
 
             return res.status(201).json({
@@ -242,19 +331,54 @@ router.put(
     ),
     async (req, res) => {
         try {
-            const allowedFields = [
-                "diagnosis",
-                "symptoms",
-                "treatment",
-                "notes"
-            ];
-
             const updates = {};
 
-            for (const field of allowedFields) {
-                if (req.body[field] !== undefined) {
-                    updates[field] = req.body[field];
+            // Update health record recovery status
+            if (req.body.status !== undefined) {
+                const allowedStatuses = [
+                    "active",
+                    "recovered",
+                    "cancelled"
+                ];
+
+                const newStatus = req.body.status.toLowerCase();
+
+                if (!allowedStatuses.includes(newStatus)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid health record status."
+                    });
                 }
+
+                updates.status = newStatus;
+            }
+
+            if (req.body.patient_id !== undefined) {
+                updates.patient_id = req.body.patient_id;
+            }
+
+            if (req.body.diagnosis !== undefined) {
+                updates.diagnosis = req.body.diagnosis || null;
+            }
+
+            if (req.body.symptoms !== undefined) {
+                updates.symptoms = req.body.symptoms
+                    ? [req.body.symptoms]
+                    : null;
+            }
+
+
+            if (req.body.treatment !== undefined) {
+                updates.treatment_notes = req.body.treatment || null;
+            }
+
+
+            if (req.body.follow_up_date !== undefined) {
+                updates.follow_up_date = req.body.follow_up_date || null;
+            }
+
+            if (req.body.notes !== undefined) {
+                updates.notes = req.body.notes || null;
             }
 
             updates.updated_at = new Date().toISOString();
@@ -298,6 +422,53 @@ router.put(
                 throw error;
             }
 
+            // Synchronize an edited follow-up date with appointment history
+            if (req.body.follow_up_date) {
+                // Look for an existing scheduled appointment for this record
+                const { data: existingFollowUp, error: followUpFetchError } =
+                    await supabase
+                        .from("health_record_followups")
+                        .select("followup_id")
+                        .eq("record_id", req.params.id)
+                        .eq("status", "scheduled")
+                        .order("created_at", { ascending: true })
+                        .limit(1)
+                        .maybeSingle();
+
+                if (followUpFetchError) {
+                    throw followUpFetchError;
+                }
+
+                if (existingFollowUp) {
+                    // Update the existing scheduled appointment
+                    const { error: followUpUpdateError } = await supabase
+                        .from("health_record_followups")
+                        .update({
+                            follow_up_date: req.body.follow_up_date,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq("followup_id", existingFollowUp.followup_id);
+
+                    if (followUpUpdateError) {
+                        throw followUpUpdateError;
+                    }
+                } else {
+                    // Create a new appointment if no scheduled one exists
+                    const { error: followUpInsertError } = await supabase
+                        .from("health_record_followups")
+                        .insert([{
+                            record_id: req.params.id,
+                            follow_up_date: req.body.follow_up_date,
+                            status: "scheduled",
+                            notes: null
+                        }]);
+
+                    if (followUpInsertError) {
+                        throw followUpInsertError;
+                    }
+                }
+            }
+
             return res.json({
                 success: true,
                 message: "Health record updated successfully.",
@@ -316,5 +487,313 @@ router.put(
     }
 );
 
+// ======================================================
+// GET FOLLOW-UP APPOINTMENTS
+// GET /api/health-records/:id/followups
+// ======================================================
+router.get("/:id/followups", authenticateToken, async (req, res) => {
+    try {
+        const result = await getClinicHealthRecord(
+            req.params.id,
+            req.user.clinic_id
+        );
+
+        if (result.status !== 200) {
+            return res.status(result.status).json({
+                success: false,
+                message: result.message
+            });
+        }
+
+        const { data, error } = await supabase
+            .from("health_record_followups")
+            .select("*")
+            .eq("record_id", req.params.id)
+            .order("follow_up_date", { ascending: true });
+
+        if (error) {
+            throw error;
+        }
+
+        return res.json({
+            success: true,
+            data
+        });
+
+    } catch (error) {
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to retrieve follow-up appointments.",
+            error: error.message
+        });
+    }
+});
+
+
+// ======================================================
+// SCHEDULE FOLLOW-UP APPOINTMENT
+// POST /api/health-records/:id/followups
+// ======================================================
+router.post(
+    "/:id/followups",
+    authenticateToken,
+    requireRole("Administrator", "Clinic Manager", "Veterinarian"),
+    async (req, res) => {
+        try {
+            const { follow_up_date, notes } = req.body;
+
+            if (!follow_up_date) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Follow-up date is required."
+                });
+            }
+
+            const result = await getClinicHealthRecord(
+                req.params.id,
+                req.user.clinic_id
+            );
+
+            if (result.status !== 200) {
+                return res.status(result.status).json({
+                    success: false,
+                    message: result.message
+                });
+            }
+
+            // Prevent scheduling on an already recovered record
+            const { data: healthRecord, error: statusError } = await supabase
+                .from("health_records")
+                .select("status")
+                .eq("record_id", req.params.id)
+                .single();
+
+            if (statusError) {
+                throw statusError;
+            }
+
+            if (healthRecord.status?.toLowerCase() === "recovered") {
+                return res.status(400).json({
+                    success: false,
+                    message: "Cannot schedule a follow-up for a recovered health record."
+                });
+            }
+
+            const { data, error } = await supabase
+                .from("health_record_followups")
+                .insert([{
+                    record_id: req.params.id,
+                    follow_up_date,
+                    status: "scheduled",
+                    notes: notes || null
+                }])
+                .select()
+                .single();
+
+            if (error) {
+                throw error;
+            }
+
+            return res.status(201).json({
+                success: true,
+                message: "Follow-up appointment scheduled successfully.",
+                data
+            });
+
+        } catch (error) {
+            console.error(error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Failed to schedule follow-up appointment.",
+                error: error.message
+            });
+        }
+    }
+);
+
+
+// ======================================================
+// UPDATE FOLLOW-UP APPOINTMENT
+// PUT /api/health-records/:id/followups/:followupId
+// ======================================================
+router.put(
+    "/:id/followups/:followupId",
+    authenticateToken,
+    requireRole("Administrator", "Clinic Manager", "Veterinarian"),
+    async (req, res) => {
+        try {
+            const result = await getClinicHealthRecord(
+                req.params.id,
+                req.user.clinic_id
+            );
+
+            if (result.status !== 200) {
+                return res.status(result.status).json({
+                    success: false,
+                    message: result.message
+                });
+            }
+
+            const updates = {};
+
+            if (req.body.follow_up_date !== undefined) {
+                if (!req.body.follow_up_date) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Follow-up date cannot be empty."
+                    });
+                }
+
+                updates.follow_up_date = req.body.follow_up_date;
+            }
+
+            if (req.body.notes !== undefined) {
+                updates.notes = req.body.notes || null;
+            }
+
+            if (req.body.status !== undefined) {
+                const allowedStatuses = [
+                    "scheduled",
+                    "completed",
+                    "missed",
+                    "cancelled"
+                ];
+
+                const newStatus = req.body.status.toLowerCase();
+
+                if (!allowedStatuses.includes(newStatus)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid follow-up appointment status."
+                    });
+                }
+
+                updates.status = newStatus;
+            }
+
+            if (Object.keys(updates).length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "No valid fields provided for update."
+                });
+            }
+
+            updates.updated_at = new Date().toISOString();
+
+            const { data, error } = await supabase
+                .from("health_record_followups")
+                .update(updates)
+                .eq("followup_id", req.params.followupId)
+                .eq("record_id", req.params.id)
+                .select()
+                .maybeSingle();
+
+            if (error) {
+                throw error;
+            }
+
+            if (!data) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Follow-up appointment not found."
+                });
+            }
+
+            return res.json({
+                success: true,
+                message: "Follow-up appointment updated successfully.",
+                data
+            });
+
+        } catch (error) {
+            console.error(error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Failed to update follow-up appointment.",
+                error: error.message
+            });
+        }
+    }
+);
+
+// ======================================================
+// DELETE HEALTH RECORD
+// DELETE /api/health-records/:id
+// ======================================================
+router.delete(
+    "/:id",
+    authenticateToken,
+    requireRole(
+        "Administrator",
+        "Clinic Manager",
+        "Veterinarian"
+    ),
+    async (req, res) => {
+        try {
+            // Find the health record
+            const { data: record, error: recordError } = await supabase
+                .from("health_records")
+                .select("record_id, patient_id")
+                .eq("record_id", req.params.id)
+                .single();
+
+            if (recordError || !record) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Health record not found."
+                });
+            }
+
+            // Verify that the associated patient belongs to this clinic
+            const { data: patient, error: patientError } = await supabase
+                .from("patients")
+                .select("clinic_id")
+                .eq("patient_id", record.patient_id)
+                .single();
+
+            if (patientError || !patient) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Associated patient not found."
+                });
+            }
+
+            if (patient.clinic_id !== req.user.clinic_id) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Access denied."
+                });
+            }
+
+            // Delete the health record
+            const { error: deleteError } = await supabase
+                .from("health_records")
+                .delete()
+                .eq("record_id", req.params.id);
+
+            if (deleteError) {
+                throw deleteError;
+            }
+
+            return res.json({
+                success: true,
+                message: "Health record deleted successfully."
+            });
+
+        } catch (error) {
+            console.error(error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Failed to delete health record.",
+                error: error.message
+            });
+        }
+    }
+);
 
 export default router;

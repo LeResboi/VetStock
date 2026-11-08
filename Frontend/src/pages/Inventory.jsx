@@ -10,6 +10,8 @@ export default function Inventory() {
   const [saving, setSaving] = useState(false);
   const [addError, setAddError] = useState('');
   const [refreshInventory, setRefreshInventory] = useState(0);
+  const [pageSize, setPageSize] = useState(5);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const initialFormData = {
     item_name: '',
@@ -109,7 +111,7 @@ export default function Inventory() {
           name: item.item_name || item.name,
           category: item.category || 'General',
           quantity: item.total_quantity !== undefined ? item.total_quantity : (item.quantity || 0),
-          price: item.cost_price !== undefined ? item.cost_price : (item.price || 0),
+          price: item.unit_price !== undefined ? item.unit_price : 0,
           minStock: item.reorder_point !== undefined ? item.reorder_point : 10
         }));
 
@@ -135,6 +137,26 @@ export default function Inventory() {
 
     return matchesSearch && matchesCategory;
   });
+
+  // ============================================================
+  // PAGINATION
+  // ============================================================
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredInventory.length / pageSize)
+  );
+
+  const startIndex = (currentPage - 1) * pageSize;
+
+  const paginatedInventory = filteredInventory.slice(
+    startIndex,
+    startIndex + pageSize
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterCategory, pageSize]);
 
   const totalItems = safeInventory.length;
   const lowStockItems = safeInventory.filter(i => {
@@ -396,7 +418,7 @@ export default function Inventory() {
             onChange={(e) => setFilterCategory(e.target.value)}
           >
             <option value="">All Categories</option>
-            <option value="Medication">Medication</option>
+            <option value="Medicine">Medicine</option>
             <option value="Vaccine">Vaccine</option>
             <option value="Supplies">Supplies</option>
           </select>
@@ -420,8 +442,8 @@ export default function Inventory() {
               <tr>
                 <td colSpan="6" className="no-data">Loading inventory from database...</td>
               </tr>
-            ) : filteredInventory.length > 0 ? (
-              filteredInventory.map((item, index) => {
+            ) : filteredInventory.length > 0 ?
+              (paginatedInventory.map((item, index) => {
                 const quantity = Number(item.quantity) || 0;
                 const minStock = Number(item.minStock ?? 10);
 
@@ -451,14 +473,77 @@ export default function Inventory() {
                   </tr>
                 );
               })
-            ) : (
-              <tr>
-                <td colSpan="6" className="no-data">No inventory items found from database.</td>
-              </tr>
-            )}
+              ) : (
+                <tr>
+                  <td colSpan="6" className="no-data">No inventory items found from database.</td>
+                </tr>
+              )}
           </tbody>
         </table>
+
+        {/* PAGINATION FOOTER */}
+        <div className="inventory-pagination">
+
+          <div className="inventory-pagination-info">
+            <label htmlFor="inventory-page-size">
+              Rows per page:
+            </label>
+
+            <select
+              id="inventory-page-size"
+              value={pageSize}
+              onChange={e => setPageSize(Number(e.target.value))}
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={15}>15</option>
+              <option value={20}>20</option>
+            </select>
+          </div>
+
+          <span className="inventory-page-range">
+            Showing {filteredInventory.length === 0
+              ? "0–0"
+              : `${startIndex + 1}–${Math.min(
+                startIndex + pageSize,
+                filteredInventory.length
+              )}`} of {filteredInventory.length} items
+          </span>
+
+          <div className="inventory-pagination-controls">
+
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() =>
+                setCurrentPage(prev => Math.max(1, prev - 1))
+              }
+            >
+              Previous
+            </button>
+
+            <span>
+              Page {currentPage} of {totalPages}
+            </span>
+
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() =>
+                setCurrentPage(prev =>
+                  Math.min(totalPages, prev + 1)
+                )
+              }
+            >
+              Next
+            </button>
+
+          </div>
+
+        </div>
+
       </div>
+
     </div>
   );
 }

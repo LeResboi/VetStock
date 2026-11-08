@@ -8,6 +8,9 @@ export default function Patient() {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'table'
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const [pageSize, setPageSize] = useState(5);
+  const [currentPage, setCurrentPage] = useState(1);
+
 
   // Modal State para sa Add Patient
   const [showModal, setShowModal] = useState(false);
@@ -320,7 +323,6 @@ export default function Patient() {
 
 
   const filteredPatients = patients.filter(p => {
-
     const name = p.patient_name || '';
     const id = p.patient_id ? p.patient_id.toString() : '';
     const owner = p.owner_name || '';
@@ -333,6 +335,23 @@ export default function Patient() {
       sp.toLowerCase().includes(searchTerm.toLowerCase())
     );
   });
+
+  // Pagination for Table View only
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredPatients.length / pageSize)
+  );
+
+  const startIndex = (currentPage - 1) * pageSize;
+
+  const paginatedPatients = filteredPatients.slice(
+    startIndex,
+    startIndex + pageSize
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, pageSize]);
 
   const getAppointmentStatus = (pat) => {
     const savedStatus = String(
@@ -512,8 +531,8 @@ export default function Patient() {
         </div>
       ) : viewMode === 'grid' ? (
         <div className="patient-grid">
-          {filteredPatients.length > 0 ? (
-            filteredPatients.map((pat) => {
+          {paginatedPatients.length > 0 ? (
+            paginatedPatients.map((pat) => {
               const status = getAppointmentStatus(pat);
               const appDate = pat.appointment_date ? new Date(pat.appointment_date).toLocaleDateString() : 'No Appointment';
               const appTime = pat.appointment_time || '';
@@ -665,6 +684,7 @@ export default function Patient() {
           )}
         </div>
       ) : (
+        <>
         <div className="table-container">
           <table className="modern-table">
             <thead>
@@ -680,8 +700,8 @@ export default function Patient() {
               </tr>
             </thead>
             <tbody>
-              {filteredPatients.length > 0 ? (
-                filteredPatients.map((pat) => {
+              {paginatedPatients.length > 0 ? (
+                paginatedPatients.map((pat) => {
                   const status = getAppointmentStatus(pat);
                   const appDate = pat.appointment_date ? new Date(pat.appointment_date).toLocaleDateString() : 'N/A';
                   const appTime = pat.appointment_time || 'N/A';
@@ -811,16 +831,74 @@ export default function Patient() {
                 })
               ) : (
                 <tr>
-                  <td colSpan="7" className="no-data">No patients found in database.</td>
+                  <td colSpan="8" className="no-data">
+                    No patients found in database.
+                  </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Patient Table Pagination */}
+        <div className="patient-pagination">
+          <div className="patient-pagination-size">
+            <label htmlFor="patient-page-size">Rows per page:</label>
+
+            <select
+              id="patient-page-size"
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={15}>15</option>
+              <option value={20}>20</option>
+            </select>
+          </div>
+
+          <span className="patient-pagination-range">
+            Showing{' '}
+            {filteredPatients.length === 0
+              ? '0–0'
+              : `${startIndex + 1}–${Math.min(
+                  startIndex + pageSize,
+                  filteredPatients.length
+                )}`}
+            {' '}of {filteredPatients.length} patients
+          </span>
+
+          <div className="patient-pagination-controls">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() =>
+                setCurrentPage((prev) => Math.max(1, prev - 1))
+              }
+            >
+              Previous
+            </button>
+
+            <span>
+              Page {currentPage} of {totalPages}
+            </span>
+
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+              }
+            >
+              Next
+            </button>
+          </div>
+        </div>
+        </>
       )
       }
 
-      {/* Modal para sa Add Patient & Appointment (Translated to English) */}
+      {/* Modal for Add Patient */}
       {
         showModal && (
           <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>

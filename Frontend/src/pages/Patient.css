@@ -339,3 +339,67 @@
 .delete-patient-btn:hover {
   background-color: #fecaca;
 }
+
+/* Patient Table Pagination */
+.patient-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 16px 20px;
+    background: #ffffff;
+    border-top: 1px solid #e5e7eb;
+    color: #374151;
+    font-size: 13px;
+}
+
+.patient-pagination-size {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.patient-pagination-size select {
+    padding: 6px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #374151;
+    font-size: 13px;
+}
+
+.patient-pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.patient-pagination-controls button {
+    padding: 7px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #374151;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.patient-pagination-controls button:hover:not(:disabled) {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+    color: #111827;
+}
+
+.patient-pagination-controls button:disabled {
+    background: #ffffff;
+    color: #9ca3af;
+    border-color: #e5e7eb;
+    cursor: not-allowed;
+}
+
+.patient-pagination-controls span {
+    white-space: nowrap;
+}
+

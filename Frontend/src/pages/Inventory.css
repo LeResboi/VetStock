@@ -55,7 +55,7 @@
   display: flex;
   align-items: center;
   gap: 15px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
   border: 1px solid #e5e7eb;
 }
 
@@ -70,9 +70,17 @@
   color: white;
 }
 
-.stat-icon.blue { background-color: #3b82f6; }
-.stat-icon.orange { background-color: #f59e0b; }
-.stat-icon.red { background-color: #ef4444; }
+.stat-icon.blue {
+  background-color: #3b82f6;
+}
+
+.stat-icon.orange {
+  background-color: #f59e0b;
+}
+
+.stat-icon.red {
+  background-color: #ef4444;
+}
 
 .stat-card h3 {
   font-size: 20px;
@@ -136,7 +144,7 @@
 .table-container {
   background: white;
   border-radius: 10px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
   border: 1px solid #e5e7eb;
   overflow-x: auto;
 }
@@ -222,13 +230,19 @@
   color: #3b82f6;
   background-color: #eff6ff;
 }
-.icon-btn.edit:hover { background-color: #dbeafe; }
+
+.icon-btn.edit:hover {
+  background-color: #dbeafe;
+}
 
 .icon-btn.delete {
   color: #ef4444;
   background-color: #fef2f2;
 }
-.icon-btn.delete:hover { background-color: #fee2e2; }
+
+.icon-btn.delete:hover {
+  background-color: #fee2e2;
+}
 
 .no-data {
   text-align: center;
@@ -449,4 +463,162 @@
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
+}
+
+/* SHOW NUMBER INPUT UP/DOWN ARROWS */
+.inventory-modal input[type="number"] {
+  appearance: auto;
+  -webkit-appearance: auto;
+}
+
+.inventory-modal input[type="number"]::-webkit-inner-spin-button,
+.inventory-modal input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: inner-spin-button;
+  opacity: 1;
+  display: block;
+  cursor: pointer;
+}
+
+/* SHOW EXPIRATION DATE CALENDAR ICON */
+.inventory-modal input[type="date"] {
+  appearance: auto;
+  -webkit-appearance: auto;
+  color-scheme: light;
+  cursor: pointer;
+}
+
+.inventory-modal input[type="number"] {
+  background-color: #ffffff !important;
+  color: #111827;
+  color-scheme: light;
+  appearance: auto;
+  -webkit-appearance: auto;
+}
+
+.inventory-modal input[type="number"]::-webkit-inner-spin-button,
+.inventory-modal input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: inner-spin-button;
+  opacity: 1;
+  background-color: #ffffff;
+  cursor: pointer;
+}
+
+/* FIX EXPIRATION DATE CALENDAR ICON */
+.inventory-modal .modal-body input[type="date"] {
+  color-scheme: light !important;
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  appearance: auto;
+  -webkit-appearance: auto;
+  cursor: pointer;
+}
+
+.inventory-modal .modal-body input[type="date"]::-webkit-calendar-picker-indicator {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+
+/* ============================================================
+   INVENTORY PAGINATION
+============================================================ */
+
+.inventory-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 15px;
+  padding: 16px 18px;
+  border-top: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+  font-size: 13px;
+}
+
+.inventory-pagination-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inventory-pagination-info select {
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.inventory-page-range {
+  color: #6b7280;
+}
+
+.inventory-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.inventory-pagination-controls button {
+  border: none;
+  background: transparent;
+  color: #0d9488;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inventory-pagination-controls button:hover:not(:disabled) {
+  color: #0f766e;
+}
+
+.inventory-pagination-controls button:disabled {
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.inventory-pagination-controls span {
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+@media (max-width: 650px) {
+  .inventory-pagination {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .inventory-pagination-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+.inventory-pagination-controls button {
+  padding: 7px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.inventory-pagination-controls button:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  color: #111827;
+}
+
+.inventory-pagination-controls button:disabled {
+  background: #ffffff;
+  color: #9ca3af;
+  border-color: #e5e7eb;
+  cursor: not-allowed;
 }

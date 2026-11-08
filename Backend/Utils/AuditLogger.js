@@ -9,7 +9,8 @@ export async function createAuditLog(
         action,
         targetTable = null,
         targetId = null,
-        details = null
+        details = null,
+        throwOnError = false
     }
 ) {
     try {
@@ -30,6 +31,10 @@ export async function createAuditLog(
                 "Failed to create audit log:",
                 error.message
             );
+
+            if (throwOnError) {
+                throw error;
+            }
         }
 
     } catch (error) {
@@ -37,5 +42,9 @@ export async function createAuditLog(
             "Audit logger error:",
             error.message
         );
+
+        if (throwOnError) {
+            throw error;
+        }
     }
 }

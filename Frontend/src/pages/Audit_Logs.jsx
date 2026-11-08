@@ -10,6 +10,8 @@ export default function AuditLogs() {
     const [error, setError] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedAction, setSelectedAction] = useState("All");
+    const [pageSize, setPageSize] = useState(5);
+    const [currentPage, setCurrentPage] = useState(1);
 
     // ============================================================
     // FETCH AUDIT LOGS
@@ -109,6 +111,26 @@ export default function AuditLogs() {
     }, [logs, searchTerm, selectedAction]);
 
     // ============================================================
+    // PAGINATION
+    // ============================================================
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, selectedAction, pageSize]);
+
+    const totalPages = Math.max(
+        1,
+        Math.ceil(filteredLogs.length / pageSize)
+    );
+
+    const startIndex = (currentPage - 1) * pageSize;
+
+    const paginatedLogs = filteredLogs.slice(
+        startIndex,
+        startIndex + pageSize
+    );
+
+    // ============================================================
     // FORMAT DATE AND TIME
     // ============================================================
 
@@ -140,6 +162,21 @@ export default function AuditLogs() {
         return tableName
             .replace(/_/g, " ")
             .replace(/\b\w/g, letter => letter.toUpperCase());
+    };
+
+
+    // ============================================================
+    // FORMAT ACTIVITY LABEL
+    // ============================================================
+
+    const formatAction = action => {
+        if (!action) return "UNKNOWN";
+
+        const actionLabels = {
+            USER_APPROVED: "ACCEPTED"
+        };
+
+        return actionLabels[action.toUpperCase()] || action;
     };
 
     // ============================================================
@@ -239,7 +276,9 @@ export default function AuditLogs() {
                         >
                             <option value="All">All Activities</option>
                             <option value="LOGIN">Login</option>
-                            <option value="REGISTER">Registration</option>
+                            <option value="LOGOUT">Logout</option>
+                            <option value="USER_APPROVED">Accepted</option>
+                            <option value="REGISTRATION_REQUESTED">Registration</option>
                             <option value="CREATE">Create</option>
                             <option value="UPDATE">Update</option>
                             <option value="DELETE">Delete</option>
@@ -276,7 +315,7 @@ export default function AuditLogs() {
 
                             <tbody>
                                 {filteredLogs.length > 0 ? (
-                                    filteredLogs.map(log => (
+                                    paginatedLogs.map(log => (
                                         <tr key={log.log_id}>
                                             <td className="audit-date">
                                                 {formatDateTime(log.created_at)}
@@ -300,7 +339,7 @@ export default function AuditLogs() {
                                                         log.action || "unknown"
                                                     ).toLowerCase().replace(/[^a-z0-9-]/g, "-")}`}
                                                 >
-                                                    {log.action || "UNKNOWN"}
+                                                    {formatAction(log.action)}
                                                 </span>
                                             </td>
 
@@ -328,9 +367,60 @@ export default function AuditLogs() {
                 )}
 
                 <div className="audit-footer">
-                    Showing {filteredLogs.length} of {logs.length} activities
-                </div>
 
+                    <div className="audit-pagination-info">
+                        <label htmlFor="audit-page-size">
+                            Rows per page:
+                        </label>
+
+                        <select
+                            id="audit-page-size"
+                            value={pageSize}
+                            onChange={e => setPageSize(Number(e.target.value))}
+                        >
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={15}>15</option>
+                            <option value={20}>20</option>
+                        </select>
+
+                        <span>
+                            Showing {filteredLogs.length === 0 ? 0 : startIndex + 1}
+                            {" - "}
+                            {Math.min(startIndex + pageSize, filteredLogs.length)}
+                            {" of "}
+                            {filteredLogs.length} activities
+                        </span>
+                    </div>
+
+                    <div className="audit-pagination-controls">
+
+                        <button
+                            disabled={currentPage === 1}
+                            onClick={() =>
+                                setCurrentPage(prev => Math.max(1, prev - 1))
+                            }
+                        >
+                            Previous
+                        </button>
+
+                        <span>
+                            Page {currentPage} of {totalPages}
+                        </span>
+
+                        <button
+                            disabled={currentPage >= totalPages}
+                            onClick={() =>
+                                setCurrentPage(prev =>
+                                    Math.min(totalPages, prev + 1)
+                                )
+                            }
+                        >
+                            Next
+                        </button>
+
+                    </div>
+                </div>
             </div>
         </div>
     );

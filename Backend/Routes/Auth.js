@@ -636,4 +636,41 @@ router.post("/login", async (req, res) => {
     }
 });
 
+// ============================================================
+// LOGOUT
+// RECORD WHO LOGGED OUT
+// ============================================================
+
+router.post(
+    "/logout",
+    authenticateToken,
+    async (req, res) => {
+        try {
+            await createAuditLog(req, {
+                userId: req.user.user_id,
+                action: "LOGOUT",
+                targetTable: "users",
+                targetId: req.user.user_id,
+                details: {
+                    description: "User logged out successfully."
+                },
+                throwOnError: true
+            });
+
+            return res.json({
+                success: true,
+                message: "Logout recorded successfully."
+            });
+
+        } catch (error) {
+            console.error("Logout error:", error.message);
+
+            return res.status(500).json({
+                success: false,
+                message: "Unable to record logout."
+            });
+        }
+    }
+);
+
 export default router;

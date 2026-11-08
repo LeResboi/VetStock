@@ -1,4 +1,3 @@
-
 // FILE: Frontend/src/pages/UserManagement.jsx
 // PURPOSE: Administrator registration request approval and user management
 
@@ -21,6 +20,23 @@ const AVAILABLE_ROLES = [
 
 export default function UserManagement() {
     const [requests, setRequests] = useState([]);
+
+    // Search and filters
+    const [requestSearch, setRequestSearch] = useState("");
+    const [requestRoleFilter, setRequestRoleFilter] = useState("");
+
+    const [userSearch, setUserSearch] = useState("");
+    const [userRoleFilter, setUserRoleFilter] = useState("");
+    const [userStatusFilter, setUserStatusFilter] = useState("");
+
+    // Pagination for Pending Requests
+    const [requestPageSize, setRequestPageSize] = useState(5);
+    const [requestCurrentPage, setRequestCurrentPage] = useState(1);
+
+    // Pagination for Registered Users
+    const [userPageSize, setUserPageSize] = useState(5);
+    const [userCurrentPage, setUserCurrentPage] = useState(1);
+
     const [users, setUsers] = useState([]);
 
     const [loading, setLoading] = useState(true);
@@ -132,6 +148,88 @@ export default function UserManagement() {
             minute: "2-digit"
         });
     };
+
+    // ========================================================
+    // PAGINATION
+    // ========================================================
+
+    // Filter Pending Registration Requests
+    const filteredRequests = requests.filter(request => {
+        const search = requestSearch.toLowerCase();
+
+        const applicantName =
+            `${request.first_name || ""} ${request.last_name || ""}`.toLowerCase();
+
+        const matchesSearch =
+            applicantName.includes(search) ||
+            (request.email || "").toLowerCase().includes(search);
+
+        const matchesRole =
+            !requestRoleFilter ||
+            request.requested_role?.role_name === requestRoleFilter;
+
+        return matchesSearch && matchesRole;
+    });
+
+    // Filter Registered Users
+    const filteredUsers = users.filter(user => {
+        const search = userSearch.toLowerCase();
+
+        const fullName =
+            `${user.first_name || ""} ${user.last_name || ""}`.toLowerCase();
+
+        const matchesSearch =
+            fullName.includes(search) ||
+            (user.email || "").toLowerCase().includes(search);
+
+        const matchesRole =
+            !userRoleFilter ||
+            user.roles?.role_name === userRoleFilter;
+
+        const matchesStatus =
+            !userStatusFilter ||
+            (userStatusFilter === "active"
+                ? user.is_active
+                : !user.is_active);
+
+        return matchesSearch && matchesRole && matchesStatus;
+    });
+
+
+    // Pending Registration Requests
+    const requestTotalPages = Math.max(
+        1,
+        Math.ceil(filteredRequests.length / requestPageSize)
+    );
+
+    const requestStartIndex = (requestCurrentPage - 1) * requestPageSize;
+
+    const paginatedRequests = filteredRequests.slice(
+        requestStartIndex,
+        requestStartIndex + requestPageSize
+    );
+
+    // Registered Users
+    const userTotalPages = Math.max(
+        1,
+        Math.ceil(filteredUsers.length / userPageSize)
+    );
+
+    const userStartIndex = (userCurrentPage - 1) * userPageSize;
+
+    const paginatedUsers = filteredUsers.slice(
+        userStartIndex,
+        userStartIndex + userPageSize
+    );
+
+    // Reset each table to page 1 when its page size changes
+    useEffect(() => {
+        setRequestCurrentPage(1);
+    }, [requestPageSize, requestSearch, requestRoleFilter]);
+
+    useEffect(() => {
+        setUserCurrentPage(1);
+    }, [userPageSize, userSearch, userRoleFilter, userStatusFilter]);
 
     // ========================================================
     // OPEN APPROVAL MODAL
@@ -339,55 +437,41 @@ export default function UserManagement() {
                 </div>
             )}
 
-            {/* SUMMARY CARDS */}
-
-            <div className="um-stats">
-
-                <div className="um-stat-card">
-                    <span className="um-stat-icon pending">
-                        <i className="fa-solid fa-user-clock"></i>
-                    </span>
-
-                    <div>
-                        <p>Pending Requests</p>
-                        <h2>{requests.length}</h2>
-                    </div>
-                </div>
-
-                <div className="um-stat-card">
-                    <span className="um-stat-icon registered">
-                        <i className="fa-solid fa-users"></i>
-                    </span>
-
-                    <div>
-                        <p>Registered Users</p>
-                        <h2>{users.length}</h2>
-                    </div>
-                </div>
-
-            </div>
-
             {/* PENDING REGISTRATION REQUESTS */}
-
             <div className="um-card">
 
-                <div className="um-card-header">
+                <div className="um-card-header um-centered-header">
                     <div>
                         <h2>Pending Registration Requests</h2>
-                        <p>
-                            Review applicants before granting access to VetStock.
-                        </p>
+                        <p>Review applicants before granting access to VetStock.</p>
                     </div>
 
                     <span className="um-pending-count">
-                        {requests.length} Pending
+                        {filteredRequests.length} Pending
                     </span>
                 </div>
 
+                <div className="um-table-filters">
+                    <input
+                        type="text"
+                        placeholder="Search applicant name or email..."
+                        value={requestSearch}
+                        onChange={e => setRequestSearch(e.target.value)}
+                    />
+
+                    <select
+                        value={requestRoleFilter}
+                        onChange={e => setRequestRoleFilter(e.target.value)}
+                    >
+                        <option value="">All Requested Roles</option>
+                        {AVAILABLE_ROLES.map(role => (
+                            <option key={role} value={role}>{role}</option>
+                        ))}
+                    </select>
+                </div>
+
                 <div className="um-table-container">
-
-                    <table className="um-table">
-
+                    <table className="um-table requests-table">
                         <thead>
                             <tr>
                                 <th>Applicant</th>
@@ -399,18 +483,15 @@ export default function UserManagement() {
                         </thead>
 
                         <tbody>
-
                             {loading ? (
                                 <tr>
                                     <td colSpan="5" className="um-empty">
                                         Loading registration requests...
                                     </td>
                                 </tr>
-
-                            ) : requests.length > 0 ? (
-                                requests.map(request => (
+                            ) : filteredRequests.length > 0 ? (
+                                paginatedRequests.map(request => (
                                     <tr key={request.request_id}>
-
                                         <td>
                                             <strong>
                                                 {request.first_name} {request.last_name}
@@ -425,14 +506,10 @@ export default function UserManagement() {
                                             </span>
                                         </td>
 
-                                        <td>
-                                            {formatDate(request.created_at)}
-                                        </td>
+                                        <td>{formatDate(request.created_at)}</td>
 
                                         <td>
-
                                             <div className="um-request-actions">
-
                                                 <button
                                                     type="button"
                                                     className="um-review-btn"
@@ -459,14 +536,10 @@ export default function UserManagement() {
                                                     <i className="fa-solid fa-xmark"></i>
                                                     Reject
                                                 </button>
-
                                             </div>
-
                                         </td>
-
                                     </tr>
                                 ))
-
                             ) : (
                                 <tr>
                                     <td colSpan="5" className="um-empty">
@@ -475,35 +548,99 @@ export default function UserManagement() {
                                     </td>
                                 </tr>
                             )}
-
                         </tbody>
-
                     </table>
 
+                    {/* Pending Requests Pagination */}
+                    <div className="um-pagination">
+                        <div className="um-pagination-info">
+                            <span>Rows per page:</span>
+
+                            <select
+                                value={requestPageSize}
+                                onChange={e => setRequestPageSize(Number(e.target.value))}
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={15}>15</option>
+                                <option value={20}>20</option>
+                            </select>
+                        </div>
+
+                        <span className="um-page-range">
+                            Showing {filteredRequests.length === 0 ? 0 : requestStartIndex + 1}
+                            –{Math.min(requestStartIndex + requestPageSize, filteredRequests.length)}
+                            {" "}of {filteredRequests.length} requests
+                        </span>
+
+                        <div className="um-pagination-controls">
+                            <button
+                                type="button"
+                                onClick={() => setRequestCurrentPage(requestCurrentPage - 1)}
+                                disabled={requestCurrentPage === 1}
+                            >
+                                Previous
+                            </button>
+
+                            <span>
+                                Page {requestCurrentPage} of {requestTotalPages}
+                            </span>
+
+                            <button
+                                type="button"
+                                onClick={() => setRequestCurrentPage(requestCurrentPage + 1)}
+                                disabled={requestCurrentPage === requestTotalPages}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
+
 
             {/* REGISTERED USERS */}
 
             <div className="um-card">
-
-                <div className="um-card-header">
+                <div className="um-card-header um-centered-header">
                     <div>
                         <h2>Registered Users</h2>
-                        <p>
-                            Accounts registered under your clinic.
-                        </p>
+                        <p>Accounts registered under your clinic.</p>
                     </div>
 
                     <span className="um-user-count">
                         {users.length} Users
                     </span>
                 </div>
+                <div className="um-table-filters">
+                    <input
+                        type="text"
+                        placeholder="Search user name or email..."
+                        value={userSearch}
+                        onChange={e => setUserSearch(e.target.value)}
+                    />
 
+                    <select
+                        value={userRoleFilter}
+                        onChange={e => setUserRoleFilter(e.target.value)}
+                    >
+                        <option value="">All Roles</option>
+                        {AVAILABLE_ROLES.map(role => (
+                            <option key={role} value={role}>{role}</option>
+                        ))}
+                    </select>
+
+                    <select
+                        value={userStatusFilter}
+                        onChange={e => setUserStatusFilter(e.target.value)}
+                    >
+                        <option value="">All Account Statuses</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                </div>
                 <div className="um-table-container">
-
-                    <table className="um-table">
-
+                    <table className="um-table users-table">
                         <thead>
                             <tr>
                                 <th>Name</th>
@@ -524,7 +661,7 @@ export default function UserManagement() {
                                 </tr>
 
                             ) : users.length > 0 ? (
-                                users.map(user => (
+                                paginatedUsers.map(user => (
                                     <tr key={user.user_id}>
 
                                         <td>
@@ -566,7 +703,50 @@ export default function UserManagement() {
                         </tbody>
 
                     </table>
+                    {/* Registered Users Pagination */}
+                    <div className="um-pagination">
+                        <div className="um-pagination-info">
+                            <span>Rows per page:</span>
 
+                            <select
+                                value={userPageSize}
+                                onChange={e => setUserPageSize(Number(e.target.value))}
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={15}>15</option>
+                                <option value={20}>20</option>
+                            </select>
+                        </div>
+
+                        <span className="um-page-range">
+                            Showing {users.length === 0 ? 0 : userStartIndex + 1}
+                            –{Math.min(userStartIndex + userPageSize, users.length)}
+                            {" "}of {users.length} users
+                        </span>
+
+                        <div className="um-pagination-controls">
+                            <button
+                                type="button"
+                                onClick={() => setUserCurrentPage(userCurrentPage - 1)}
+                                disabled={userCurrentPage === 1}
+                            >
+                                Previous
+                            </button>
+
+                            <span>
+                                Page {userCurrentPage} of {userTotalPages}
+                            </span>
+
+                            <button
+                                type="button"
+                                onClick={() => setUserCurrentPage(userCurrentPage + 1)}
+                                disabled={userCurrentPage === userTotalPages}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -720,14 +900,10 @@ export default function UserManagement() {
                                     ? "Rejecting..."
                                     : "Confirm Rejection"}
                             </button>
-
                         </div>
-
                     </div>
-
                 </div>
             )}
-
         </div>
     );
 }

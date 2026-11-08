@@ -55,7 +55,7 @@
   display: flex;
   align-items: center;
   gap: 15px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
   border: 1px solid #e5e7eb;
 }
 
@@ -70,7 +70,9 @@
   color: white;
 }
 
-.stat-icon.blue { background-color: #3b82f6; }
+.stat-icon.blue {
+  background-color: #3b82f6;
+}
 
 .stat-card h3 {
   font-size: 20px;
@@ -82,6 +84,200 @@
   font-size: 12px;
   color: #6b7280;
   margin: 0;
+}
+
+.health-records-page .form-group input[type="date"] {
+  width: 100%;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  color: #000000;
+  padding: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  cursor: pointer;
+  color-scheme: light;
+}
+
+.health-records-page .form-group input[type="date"]::-webkit-calendar-picker-indicator {
+  display: block;
+  cursor: pointer;
+  opacity: 1;
+  filter: none;
+}
+
+/* ============================================================
+   FOLLOW-UP STATUS COUNTERS
+============================================================ */
+
+.health-records-page .stat-icon.teal {
+  background-color: #0d9488;
+}
+
+.health-records-page .stat-icon.orange {
+  background-color: #f59e0b;
+}
+
+.health-records-page .stat-icon.gray {
+  background-color: #64748b;
+}
+
+/* ============================================================
+   FOLLOW-UP STATUS BADGES IN TABLE
+============================================================ */
+
+.health-records-page .follow-up-status {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 4px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.health-records-page .follow-up-status.upcoming {
+  background-color: #ccfbf1;
+  color: #0f766e;
+}
+
+.health-records-page .follow-up-status.overdue {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.health-records-page .follow-up-status.not-scheduled {
+  background-color: #f1f5f9;
+  color: #64748b;
+}
+
+/* ============================================================
+   FOLLOW-UP APPOINTMENT ACTION BUTTONS
+============================================================ */
+
+.health-records-page .followup-action-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 10px;
+  margin-top: 14px;
+}
+
+.health-records-page .followup-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.health-records-page .followup-btn:hover {
+  transform: translateY(-1px);
+}
+
+.health-records-page .followup-complete-btn {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.health-records-page .followup-complete-btn:hover {
+  background-color: #bbf7d0;
+}
+
+.health-records-page .followup-missed-btn {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.health-records-page .followup-missed-btn:hover {
+  background-color: #fde68a;
+}
+
+.health-records-page .followup-cancel-btn {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.health-records-page .followup-cancel-btn:hover {
+  background-color: #fecaca;
+}
+
+/* Schedule Follow-up Button */
+
+.health-records-page .followup-schedule-btn {
+  padding: 8px 12px;
+  background-color: #0d9488;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.health-records-page .followup-schedule-btn:hover {
+  background-color: #0f766e;
+}
+
+.health-records-page .followup-schedule-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Follow-up Form Buttons */
+
+.health-records-page .followup-form-cancel-btn,
+.health-records-page .followup-form-save-btn {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.health-records-page .followup-form-cancel-btn {
+  background-color: #e2e8f0;
+  color: #334155;
+}
+
+.health-records-page .followup-form-cancel-btn:hover {
+  background-color: #cbd5e1;
+}
+
+.health-records-page .followup-form-save-btn {
+  background-color: #0d9488;
+  color: #ffffff;
+}
+
+.health-records-page .followup-form-save-btn:hover:not(:disabled) {
+  background-color: #0f766e;
+}
+
+.health-records-page .followup-form-save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Responsive Follow-up Buttons */
+
+@media (max-width: 600px) {
+  .health-records-page .followup-action-buttons {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .health-records-page .followup-btn {
+    width: 100%;
+  }
 }
 
 /* Toolbar */
@@ -119,13 +315,14 @@
 .table-container {
   background: white;
   border-radius: 10px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
   border: 1px solid #e5e7eb;
   overflow-x: auto;
 }
 
 .modern-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   text-align: left;
   font-size: 14px;
@@ -162,4 +359,467 @@
   text-align: center;
   color: #9ca3af;
   padding: 30px !important;
+}
+
+/* Limit Symptoms Column Width */
+.modern-table th.symptoms-column,
+.modern-table td.symptoms-column {
+  width: 180px;
+  max-width: 180px;
+}
+
+.symptoms-text {
+  max-width: 180px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Limit Treatment Column Width */
+.modern-table th.treatment-column,
+.modern-table td.treatment-column {
+  width: 180px;
+  max-width: 180px;
+}
+
+.treatment-text {
+  max-width: 180px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Limit Diagnosis Column Width */
+.modern-table th.diagnosis-column,
+.modern-table td.diagnosis-column {
+  width: 180px;
+  max-width: 180px;
+}
+
+.diagnosis-text {
+  max-width: 180px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+
+/* ============================================================
+   HEALTH RECORDS MODAL
+   Consistent with Patient Add/Edit Modal
+============================================================ */
+
+.health-records-page .modal-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.health-records-page .modal-content {
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 8px;
+  width: 500px;
+  max-width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  box-sizing: border-box;
+}
+
+.health-records-page .modal-content::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.health-records-page .modal-header {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 42px;
+  margin-bottom: 20px;
+}
+
+.health-records-page .modal-header h3 {
+  margin: 0;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #333333;
+}
+
+.health-records-page .close-btn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #666666;
+  cursor: pointer;
+}
+
+.health-records-page .close-btn:hover {
+  color: #111827;
+}
+
+.health-records-page .form-group {
+  margin-bottom: 12px;
+}
+
+.health-records-page .form-group label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #333333;
+}
+
+.health-records-page .form-group input,
+.health-records-page .form-group select,
+.health-records-page .form-group textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background-color: #ffffff;
+  color: #000000;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.health-records-page .form-group input:focus,
+.health-records-page .form-group select:focus,
+.health-records-page .form-group textarea:focus {
+  outline: none;
+  border-color: #0d9488;
+}
+
+.health-records-page .form-group select:disabled {
+  background-color: #f3f4f6;
+  cursor: not-allowed;
+}
+
+.health-records-page .form-group small {
+  display: block;
+  margin-top: 5px;
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.health-records-page .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.health-records-page .cancel-btn,
+.health-records-page .submit-btn {
+  padding: 9px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.health-records-page .cancel-btn {
+  background-color: #e2e8f0;
+  color: #333333;
+}
+
+.health-records-page .cancel-btn:hover {
+  background-color: #cbd5e1;
+}
+
+.health-records-page .submit-btn {
+  background-color: #0d9488;
+  color: #ffffff;
+}
+
+.health-records-page .submit-btn:hover:not(:disabled) {
+  background-color: #0f766e;
+}
+
+.health-records-page .submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   HEALTH RECORD DETAILS MODAL
+============================================================ */
+
+.health-records-page .record-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.health-records-page .record-details p {
+  margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.health-records-page .record-details strong {
+  color: #374151;
+  font-weight: 600;
+}
+
+/* ============================================================
+   HEALTH RECORDS PAGINATION
+============================================================ */
+
+.health-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 15px;
+  padding: 16px 18px;
+  border-top: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+  font-size: 13px;
+}
+
+.health-pagination-size {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.health-pagination-size select {
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.health-pagination>span {
+  color: #6b7280;
+}
+
+.health-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.health-pagination-controls button {
+  padding: 7px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.health-pagination-controls button:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  color: #111827;
+}
+
+.health-pagination-controls button:disabled {
+  background: #ffffff;
+  color: #9ca3af;
+  border-color: #e5e7eb;
+  cursor: not-allowed;
+}
+
+.health-pagination-controls span {
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+@media (max-width: 650px) {
+  .health-pagination {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  /* ============================================================
+   HEALTH RECORDS ACTION BUTTONS
+============================================================ */
+
+  .hr-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .hr-action-btn {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .hr-action-btn.view {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+  }
+
+  .hr-action-btn.view:hover {
+    background-color: #bfdbfe;
+  }
+
+  .hr-action-btn.edit {
+    background-color: #fef3c7;
+    color: #92400e;
+  }
+
+  .hr-action-btn.edit:hover {
+    background-color: #fde68a;
+  }
+
+  .hr-action-btn.delete {
+    background-color: #fee2e2;
+    color: #b91c1c;
+  }
+
+  .hr-action-btn.delete:hover {
+    background-color: #fecaca;
+  }
+
+  .health-pagination-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* ============================================================
+   HEALTH RECORD DETAILS MODAL
+============================================================ */
+
+.health-records-page .record-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.health-records-page .record-details p {
+  margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.health-records-page .record-details strong {
+  color: #374151;
+  font-weight: 600;
+}
+
+@media (max-width: 650px) {
+  .health-records-page .modal-content {
+    width: 100%;
+    max-width: 95%;
+    padding: 18px;
+  }
+
+  .hr-actions {
+    flex-wrap: wrap;
+  }
+}
+
+/* ============================================================
+   CLICKABLE HEALTH RECORD ROW
+============================================================ */
+
+.health-records-page .clickable-record-row {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.health-records-page .clickable-record-row:hover {
+  background-color: #f0fdfa;
+}
+
+/* ============================================================
+   HEALTH RECORD EDIT AND DELETE BUTTONS
+============================================================ */
+
+.health-records-page .hr-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.health-records-page .edit-patient-btn,
+.health-records-page .delete-patient-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.health-records-page .edit-patient-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #0d9488;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.health-records-page .symptoms-text {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.health-records-page .edit-patient-btn:hover {
+  background-color: #0f766e;
+}
+
+.health-records-page .edit-patient-btn:hover {
+  background-color: #5edf80;
+}
+
+.health-records-page .delete-patient-btn {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.health-records-page .delete-patient-btn:hover {
+  background-color: #fecaca;
 }

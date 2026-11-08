@@ -361,6 +361,45 @@ export function MainLayout() {
         return <Navigate to="/" replace />;
     }
 
+    const handleLogout = async () => {
+        const token = localStorage.getItem('token');
+
+        try {
+            if (token) {
+                const response = await fetch(
+                    'http://localhost:3001/api/auth/logout',
+                    {
+                        method: 'POST',
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        }
+                    }
+                );
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(
+                        data.message || 'Failed to record logout.'
+                    );
+                }
+            }
+
+        } catch (error) {
+            console.error('Logout audit error:', error);
+
+            alert(
+                'You have been logged out, but the logout activity could not be recorded.'
+            );
+
+        } finally {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+
+            navigate('/');
+        }
+    };
+
     return (
         <div className="app">
 
@@ -538,11 +577,7 @@ export function MainLayout() {
 
                     <button
                         className="sidebar-logout-btn"
-                        onClick={() => {
-                            localStorage.removeItem('token');
-                            localStorage.removeItem('user');
-                            navigate('/');
-                        }}
+                        onClick={handleLogout}
                     >
                         <i className="fa-solid fa-right-from-bracket"></i>
                         <span>Logout</span>

@@ -243,6 +243,20 @@
     color: #1d4ed8;
 }
 
+/* LOGIN AND LOGOUT */
+
+.action-logout {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+/* APPROVED ACCOUNTS */
+
+.action-user-approved {
+    background: #d1fae5;
+    color: #047857;
+}
+
 .action-register,
 .action-create {
     background: #d1fae5;
@@ -293,11 +307,55 @@
     font-size: 13px;
 }
 
+/* PAGINATION */
+
 .audit-footer {
-    padding-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 15px;
+    padding-top: 18px;
     color: #6b7280;
     font-size: 12px;
-    text-align: right;
+}
+
+.audit-pagination-info,
+.audit-pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.audit-pagination-info select {
+    padding: 7px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #374151;
+    outline: none;
+    cursor: pointer;
+}
+
+.audit-pagination-controls button {
+    padding: 7px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #374151;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.audit-pagination-controls button:hover:not(:disabled) {
+    background: #f0fdfa;
+    border-color: #0d9488;
+    color: #0d9488;
+}
+
+.audit-pagination-controls button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 /* RESPONSIVE */
