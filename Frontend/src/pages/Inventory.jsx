@@ -6,6 +6,23 @@ export default function Inventory() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // Inventory Details Modal
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+
+  // Edit Inventory Modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFormData, setEditFormData] = useState({});
+
+  // Delete Confirmation Modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Action states
+  const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [actionError, setActionError] = useState('');
+
   const [filterCategory, setFilterCategory] = useState('');
   const [saving, setSaving] = useState(false);
   const [addError, setAddError] = useState('');
@@ -89,6 +106,132 @@ export default function Inventory() {
     }
   }
 
+  // ============================================================
+  // EDIT INVENTORY ITEM
+  // ============================================================
+
+  async function handleUpdateInventory(event) {
+    event.preventDefault();
+
+    if (updating || !selectedItem) return;
+
+    setUpdating(true);
+    setActionError('');
+
+    try {
+      const response = await fetch(
+        `http://localhost:3001/api/inventory/${selectedItem.id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            item_name: editFormData.item_name.trim(),
+            category: editFormData.category,
+            unit_of_measure: editFormData.unit_of_measure,
+            unit_price: Number(editFormData.unit_price) || 0,
+            cost_price: Number(editFormData.cost_price) || 0,
+            supplier_id: editFormData.supplier_id || null,
+            min_stock_level: Number(editFormData.min_stock_level) || 0,
+            max_stock_level: Number(editFormData.max_stock_level) || 0,
+            reorder_point: Number(editFormData.reorder_point) || 0,
+            storage_conditions: editFormData.storage_conditions
+          })
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update inventory item.');
+      }
+
+      alert('Inventory item updated successfully!');
+
+      setShowEditModal(false);
+      setShowDetailsModal(false);
+      setSelectedItem(null);
+      setEditFormData({});
+      setRefreshInventory(previous => previous + 1);
+
+    } catch (error) {
+      console.error('Update inventory error:', error);
+      setActionError(error.message || 'Failed to update inventory item.');
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  // ============================================================
+  // DELETE INVENTORY ITEM (SOFT DELETE)
+  // ============================================================
+
+  async function handleDeleteInventory() {
+    if (deleting || !selectedItem) return;
+
+    setDeleting(true);
+    setActionError('');
+
+    try {
+      const response = await fetch(
+        `http://localhost:3001/api/inventory/${selectedItem.id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to delete inventory item.');
+      }
+
+      alert('Inventory item deleted successfully!');
+
+      setShowDeleteModal(false);
+      setShowDetailsModal(false);
+      setSelectedItem(null);
+      setRefreshInventory(previous => previous + 1);
+
+    } catch (error) {
+      console.error('Delete inventory error:', error);
+      setActionError(error.message || 'Failed to delete inventory item.');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  // ============================================================
+  // OPEN EDIT INVENTORY MODAL
+  // ============================================================
+
+  function openEditModal(item) {
+    setActionError('');
+
+    setSelectedItem(item);
+
+    setEditFormData({
+      item_name: item.item_name || item.name || '',
+      category: item.category || 'Medicine',
+      unit_of_measure: item.unit_of_measure || '',
+      unit_price: item.unit_price ?? 0,
+      cost_price: item.cost_price ?? 0,
+      supplier_id: item.supplier_id || '',
+      min_stock_level: item.min_stock_level ?? 0,
+      max_stock_level: item.max_stock_level ?? 0,
+      reorder_point: item.reorder_point ?? 0,
+      storage_conditions: item.storage_conditions || ''
+    });
+
+    setShowDetailsModal(false);
+    setShowEditModal(true);
+  }
+
   useEffect(() => {
     fetch('http://localhost:3001/api/inventory', {
       headers: {
@@ -107,12 +250,24 @@ export default function Inventory() {
         }
 
         const formattedItems = rawItems.map(item => ({
+          ...item,
+
           id: item.item_id || item.id,
           name: item.item_name || item.name,
           category: item.category || 'General',
-          quantity: item.total_quantity !== undefined ? item.total_quantity : (item.quantity || 0),
-          price: item.unit_price !== undefined ? item.unit_price : 0,
-          minStock: item.reorder_point !== undefined ? item.reorder_point : 10
+
+          quantity:
+            item.quantity !== undefined
+              ? item.quantity
+              : item.total_quantity || 0,
+
+          price: item.unit_price !== undefined
+            ? item.unit_price
+            : 0,
+
+          minStock: item.reorder_point !== undefined
+            ? item.reorder_point
+            : 10
         }));
 
         setInventory(formattedItems);
@@ -378,6 +533,458 @@ export default function Inventory() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* INVENTORY DETAILS MODAL */}
+
+      {showDetailsModal && selectedItem && (
+        <div
+          className="modal-overlay inventory-details-overlay"
+          onClick={() => setShowDetailsModal(false)}
+        >
+          <div
+            className="inventory-modal inventory-details-modal"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2>Inventory Item Details</h2>
+
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setShowDetailsModal(false)}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div className="modal-body">
+
+              {actionError && (
+                <p className="error-msg">{actionError}</p>
+              )}
+
+              <div className="inventory-detail-grid">
+
+                <div className="inventory-detail-item">
+                  <label>Item ID</label>
+                  <p>{selectedItem.item_id || selectedItem.id}</p>
+                </div>
+
+                <div className="inventory-detail-item">
+                  <label>Item Code</label>
+                  <p>{selectedItem.item_code || 'Not assigned'}</p>
+                </div>
+
+                <div className="inventory-detail-item">
+                  <label>Medicine Name</label>
+                  <p>{selectedItem.item_name || selectedItem.name}</p>
+                </div>
+
+                <div className="inventory-detail-item">
+                  <label>Category</label>
+                  <p>{selectedItem.category || 'Not specified'}</p>
+                </div>
+
+                <div className="inventory-detail-item">
+                  <label>Unit of Measure</label>
+                  <p>{selectedItem.unit_of_measure || 'Not specified'}</p>
+                </div>
+
+                <div className="inventory-detail-item">
+                  <label>Current Quantity</label>
+                  <p>{selectedItem.quantity ?? 0}</p>
+                </div>
+
+                <div className="inventory-detail-item">
+                  <label>Unit Price</label>
+                  <p>₱{Number(selectedItem.unit_price || 0).toFixed(2)}</p>
+                </div>
+
+                <div className="inventory-detail-item">
+                  <label>Cost Price</label>
+                  <p>₱{Number(selectedItem.cost_price || 0).toFixed(2)}</p>
+                </div>
+
+                <div className="inventory-detail-item">
+                  <label>Minimum Stock Level</label>
+                  <p>{selectedItem.min_stock_level ?? 0}</p>
+                </div>
+
+                <div className="inventory-detail-item">
+                  <label>Maximum Stock Level</label>
+                  <p>{selectedItem.max_stock_level ?? 0}</p>
+                </div>
+
+                <div className="inventory-detail-item">
+                  <label>Reorder Point</label>
+                  <p>{selectedItem.reorder_point ?? 0}</p>
+                </div>
+
+                <div className="inventory-detail-item">
+                  <label>Supplier</label>
+                  <p>
+                    {Array.isArray(selectedItem.suppliers)
+                      ? selectedItem.suppliers[0]?.supplier_name || 'Not assigned'
+                      : selectedItem.suppliers?.supplier_name || 'Not assigned'}
+                  </p>
+                </div>
+
+                <div className="inventory-detail-item">
+                  <label>Storage Conditions</label>
+                  <p>{selectedItem.storage_conditions || 'Not specified'}</p>
+                </div>
+
+              </div>
+
+              <div className="inventory-batch-section">
+                <h3>Batch Information</h3>
+
+                {Array.isArray(selectedItem.inventory_batches) &&
+                  selectedItem.inventory_batches.length > 0 ? (
+                  <div className="inventory-batch-list">
+                    {selectedItem.inventory_batches.map(batch => (
+                      <div
+                        className="inventory-batch-card"
+                        key={batch.batch_id}
+                      >
+                        <p>
+                          <strong>Batch Number:</strong>{' '}
+                          {batch.batch_number || 'Not assigned'}
+                        </p>
+
+                        <p>
+                          <strong>Quantity:</strong>{' '}
+                          {batch.quantity ?? 0}
+                        </p>
+
+                        <p>
+                          <strong>Expiration Date:</strong>{' '}
+                          {batch.expiration_date
+                            ? new Date(batch.expiration_date).toLocaleDateString()
+                            : 'No expiration date'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p>No batch information available.</p>
+                )}
+              </div>
+
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={() => openEditModal(selectedItem)}
+              >
+                <i className="fa-solid fa-pen"></i> Edit Item
+              </button>
+
+              <button
+                type="button"
+                className="delete-btn"
+                style={{
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  border: '1px solid #dc2626',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s'
+                }}
+                onClick={() => {
+                  setActionError('');
+                  setShowDetailsModal(false);
+                  setShowDeleteModal(true);
+                }}
+              >
+                <i className="fa-solid fa-trash"></i> Delete Item
+              </button>
+
+
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={() => setShowDetailsModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================
+    EDIT INVENTORY MODAL
+============================================================ */}
+
+      {showEditModal && selectedItem && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!updating) setShowEditModal(false);
+          }}
+        >
+          <div
+            className="inventory-modal"
+            onClick={e => e.stopPropagation()}
+          >
+
+            <div className="modal-header">
+              <h2>Edit Inventory Item</h2>
+
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setShowEditModal(false)}
+                disabled={updating}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateInventory}>
+
+              <div className="modal-body">
+
+                {actionError && (
+                  <p className="error-msg">{actionError}</p>
+                )}
+
+                <label>Medicine Name *</label>
+                <input
+                  type="text"
+                  value={editFormData.item_name || ''}
+                  onChange={e =>
+                    setEditFormData({
+                      ...editFormData,
+                      item_name: e.target.value
+                    })
+                  }
+                  required
+                />
+
+                <label>Category</label>
+                <select
+                  value={editFormData.category || 'Medicine'}
+                  onChange={e =>
+                    setEditFormData({
+                      ...editFormData,
+                      category: e.target.value
+                    })
+                  }
+                >
+                  <option value="Medicine">Medicine</option>
+                  <option value="Vaccine">Vaccine</option>
+                  <option value="Supplies">Supplies</option>
+                </select>
+
+                <label>Unit of Measure</label>
+                <input
+                  type="text"
+                  value={editFormData.unit_of_measure || ''}
+                  onChange={e =>
+                    setEditFormData({
+                      ...editFormData,
+                      unit_of_measure: e.target.value
+                    })
+                  }
+                />
+
+                <label>Unit Price</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editFormData.unit_price ?? 0}
+                  onChange={e =>
+                    setEditFormData({
+                      ...editFormData,
+                      unit_price: e.target.value
+                    })
+                  }
+                />
+
+                <label>Cost Price</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editFormData.cost_price ?? 0}
+                  onChange={e =>
+                    setEditFormData({
+                      ...editFormData,
+                      cost_price: e.target.value
+                    })
+                  }
+                />
+
+                <label>Minimum Stock Level</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editFormData.min_stock_level ?? 0}
+                  onChange={e =>
+                    setEditFormData({
+                      ...editFormData,
+                      min_stock_level: e.target.value
+                    })
+                  }
+                />
+
+                <label>Maximum Stock Level</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editFormData.max_stock_level ?? 0}
+                  onChange={e =>
+                    setEditFormData({
+                      ...editFormData,
+                      max_stock_level: e.target.value
+                    })
+                  }
+                />
+
+                <label>Reorder Point</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editFormData.reorder_point ?? 0}
+                  onChange={e =>
+                    setEditFormData({
+                      ...editFormData,
+                      reorder_point: e.target.value
+                    })
+                  }
+                />
+
+                <label>Storage Conditions</label>
+                <input
+                  type="text"
+                  value={editFormData.storage_conditions || ''}
+                  onChange={e =>
+                    setEditFormData({
+                      ...editFormData,
+                      storage_conditions: e.target.value
+                    })
+                  }
+                />
+
+              </div>
+
+              <div className="modal-footer">
+
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => setShowEditModal(false)}
+                  disabled={updating}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="primary-btn"
+                  disabled={updating}
+                >
+                  {updating ? 'Updating...' : 'Save Changes'}
+                </button>
+
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================
+    DELETE INVENTORY CONFIRMATION MODAL
+============================================================ */}
+
+      {showDeleteModal && selectedItem && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!deleting) setShowDeleteModal(false);
+          }}
+        >
+          <div
+            className="inventory-modal"
+            onClick={e => e.stopPropagation()}
+          >
+
+            <div className="modal-header">
+              <h2>Confirm Delete</h2>
+
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div className="modal-body">
+
+              {actionError && (
+                <p className="error-msg">{actionError}</p>
+              )}
+
+              <p>
+                Are you sure you want to delete{' '}
+                <strong>
+                  {selectedItem.item_name || selectedItem.name}
+                </strong>?
+              </p>
+
+              <p style={{ color: '#6b7280', fontSize: '13px' }}>
+                This inventory item will be removed from the active inventory.
+                Its historical records and transactions will be preserved.
+              </p>
+
+            </div>
+
+            <div className="modal-footer">
+
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDeleteInventory}
+                style={{
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  border: '1px solid #dc2626',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                <i className="fa-solid fa-trash"></i>{' '}
+                {deleting ? 'Deleting...' : 'Delete Item'}
+              </button>
+
+            </div>
 
           </div>
         </div>
@@ -435,12 +1042,13 @@ export default function Inventory() {
               <th>Quantity</th>
               <th>Unit Price</th>
               <th>Status</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="6" className="no-data">Loading inventory from database...</td>
+                <td colSpan="7" className="no-data">Loading inventory from database...</td>
               </tr>
             ) : filteredInventory.length > 0 ?
               (paginatedInventory.map((item, index) => {
@@ -459,7 +1067,15 @@ export default function Inventory() {
                     ? 'low-stock'
                     : 'in-stock';
                 return (
-                  <tr key={index}>
+                  <tr
+                    key={item.id}
+                    className="inventory-clickable-row"
+                    onClick={() => {
+                      setSelectedItem(item);
+                      setActionError('');
+                      setShowDetailsModal(true);
+                    }}
+                  >
                     <td><span className="item-id">{String(item.id).substring(0, 8)}</span></td>
                     <td><strong>{item.name}</strong></td>
                     <td>{item.category}</td>
@@ -469,6 +1085,34 @@ export default function Inventory() {
                       <span className={`status-badge ${statusClass}`}>
                         {stockStatus}
                       </span>
+                    </td>
+                    <td>
+                      <div
+                        className="action-buttons"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          className="icon-btn edit"
+                          title="Edit Inventory Item"
+                          onClick={() => openEditModal(item)}
+                        >
+                          <i className="fa-solid fa-pen"></i>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="icon-btn delete"
+                          title="Delete Inventory Item"
+                          onClick={() => {
+                            setSelectedItem(item);
+                            setActionError('');
+                            setShowDeleteModal(true);
+                          }}
+                        >
+                          <i className="fa-solid fa-trash"></i>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

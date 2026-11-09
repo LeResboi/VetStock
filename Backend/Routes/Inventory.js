@@ -43,8 +43,9 @@ router.get(
                 )
             `)
                 .eq("clinic_id", req.user.clinic_id)
+                .eq("is_active", true)
                 .order("created_at", {
-                    ascending: true
+                    ascending: false
                 });
 
             if (error) {
@@ -256,6 +257,164 @@ router.post(
                 "Create inventory error:",
                 error
             );
+
+            res.status(500).json({
+                success: false,
+                message: "Internal server error."
+            });
+        }
+    }
+);
+
+// ============================================================
+// UPDATE INVENTORY ITEM
+// ============================================================
+
+router.put(
+    "/:id",
+    authenticateToken,
+    requireRole(
+        "Administrator",
+        "Inventory Staff"
+    ),
+    async (req, res) => {
+        try {
+            const {
+                item_name,
+                category,
+                unit_of_measure,
+                unit_price,
+                cost_price,
+                supplier_id,
+                min_stock_level,
+                max_stock_level,
+                reorder_point,
+                storage_conditions
+            } = req.body;
+
+            if (!item_name || !item_name.trim()) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Item name is required."
+                });
+            }
+
+            const updates = {
+                item_name: item_name.trim(),
+                category: category || null,
+                unit_of_measure: unit_of_measure || null,
+                unit_price: Number(unit_price) || 0,
+                cost_price: Number(cost_price) || 0,
+                supplier_id: supplier_id || null,
+                min_stock_level: Number(min_stock_level) || 0,
+                max_stock_level: Number(max_stock_level) || 0,
+                reorder_point: Number(reorder_point) || 0,
+                storage_conditions: storage_conditions || null,
+                updated_at: new Date().toISOString()
+            };
+
+            const { data: item, error } = await supabase
+                .from("inventory_items")
+                .update(updates)
+                .eq("item_id", req.params.id)
+                .eq("clinic_id", req.user.clinic_id)
+                .eq("is_active", true)
+                .select()
+                .single();
+
+            if (error) {
+                console.error("Update inventory error:", error);
+
+                return res.status(
+                    error.code === "PGRST116" ? 404 : 500
+                ).json({
+                    success: false,
+                    message: error.code === "PGRST116"
+                        ? "Inventory item not found."
+                        : error.message
+                });
+            }
+
+            await createAuditLog(req, {
+                action: "UPDATE",
+                targetTable: "inventory_items",
+                targetId: item.item_id,
+                details: {
+                    description: `Updated inventory item: ${item.item_name}`
+                }
+            });
+
+            res.json({
+                success: true,
+                message: "Inventory item updated successfully.",
+                data: item
+            });
+
+        } catch (error) {
+            console.error("Update inventory error:", error);
+
+            res.status(500).json({
+                success: false,
+                message: "Internal server error."
+            });
+        }
+    }
+);
+
+// ============================================================
+// DELETE INVENTORY ITEM (SOFT DELETE)
+// ============================================================
+
+router.delete(
+    "/:id",
+    authenticateToken,
+    requireRole(
+        "Administrator",
+        "Inventory Staff"
+    ),
+    async (req, res) => {
+        try {
+            const { data: item, error } = await supabase
+                .from("inventory_items")
+                .update({
+                    is_active: false,
+                    updated_at: new Date().toISOString()
+                })
+                .eq("item_id", req.params.id)
+                .eq("clinic_id", req.user.clinic_id)
+                .eq("is_active", true)
+                .select()
+                .single();
+
+            if (error) {
+                console.error("Delete inventory error:", error);
+
+                return res.status(
+                    error.code === "PGRST116" ? 404 : 500
+                ).json({
+                    success: false,
+                    message: error.code === "PGRST116"
+                        ? "Inventory item not found or already deleted."
+                        : error.message
+                });
+            }
+
+            await createAuditLog(req, {
+                action: "DELETE",
+                targetTable: "inventory_items",
+                targetId: item.item_id,
+                details: {
+                    description: `Deactivated inventory item: ${item.item_name}`
+                }
+            });
+
+            res.json({
+                success: true,
+                message: "Inventory item deleted successfully."
+            });
+
+        } catch (error) {
+            console.error("Delete inventory error:", error);
 
             res.status(500).json({
                 success: false,

@@ -587,23 +587,12 @@ export default function Patient() {
                       {pat.appointment_date && status === 'Scheduled' && (
                         <button
                           type="button"
+                          className="patient-action-btn complete"
                           title="Complete Appointment"
                           aria-label="Complete Appointment"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleUpdateAppointmentStatus(pat, 'Completed');
-                          }}
-                          style={{
-                            width: '36px',
-                            height: '36px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: '#dcfce7',
-                            color: '#166534',
-                            border: 'none',
-                            borderRadius: '6px',
-                            cursor: 'pointer'
                           }}
                         >
                           <i className="fa-solid fa-check"></i>
@@ -614,23 +603,12 @@ export default function Patient() {
                       {pat.appointment_date && status === 'Scheduled' && (
                         <button
                           type="button"
+                          className="patient-action-btn cancel"
                           title="Cancel Appointment"
                           aria-label="Cancel Appointment"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleUpdateAppointmentStatus(pat, 'Cancelled');
-                          }}
-                          style={{
-                            width: '36px',
-                            height: '36px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: '#fee2e2',
-                            color: '#991b1b',
-                            border: 'none',
-                            borderRadius: '6px',
-                            cursor: 'pointer'
                           }}
                         >
                           <i className="fa-solid fa-xmark"></i>
@@ -639,23 +617,12 @@ export default function Patient() {
                       {/* Edit */}
                       <button
                         type="button"
+                        className="patient-action-btn edit"
                         title="Edit Patient"
                         aria-label="Edit Patient"
                         onClick={(e) => {
                           e.stopPropagation();
                           openEditModal(pat);
-                        }}
-                        style={{
-                          width: '36px',
-                          height: '36px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          backgroundColor: '#0d9488',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '6px',
-                          cursor: 'pointer'
                         }}
                       >
                         <i className="fa-solid fa-pen"></i>
@@ -685,215 +652,182 @@ export default function Patient() {
         </div>
       ) : (
         <>
-        <div className="table-container">
-          <table className="modern-table">
-            <thead>
-              <tr>
-                <th>Patient ID</th>
-                <th>Patient Name</th>
-                <th>Species</th>
-                <th>Owner</th>
-                <th>Appointment Date</th>
-                <th>Time</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedPatients.length > 0 ? (
-                paginatedPatients.map((pat) => {
-                  const status = getAppointmentStatus(pat);
-                  const appDate = pat.appointment_date ? new Date(pat.appointment_date).toLocaleDateString() : 'N/A';
-                  const appTime = pat.appointment_time || 'N/A';
-
-                  return (
-                    <tr
-                      key={pat.patient_id}
-                      onClick={() => setSelectedPatient(pat)}
-                      style={{ cursor: 'pointer' }}
-                      title="Click to view patient details"
-                    >
-                      <td><span className="item-id">#{pat.patient_id.substring(0, 8)}</span></td>
-                      <td><strong>{pat.patient_name}</strong></td>
-                      <td><span className="species-tag">{pat.species}</span></td>
-                      <td>{pat.owner_name}</td>
-                      <td>{appDate}</td>
-                      <td>{appTime}</td>
-                      <td>
-                        <span className={`status-badge ${status.toLowerCase()}`}>
-                          {status}
-                        </span>
-                      </td>
-                      <td>
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px'
-                          }}
-                        >
-
-                          {/* Complete */}
-                          {pat.appointment_date && status === 'Scheduled' && (
-                            <button
-                              type="button"
-                              title="Complete Appointment"
-                              aria-label="Complete Appointment"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUpdateAppointmentStatus(pat, 'Completed');
-                              }}
-                              style={{
-                                width: '36px',
-                                height: '36px',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                backgroundColor: '#dcfce7',
-                                color: '#166534',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              <i className="fa-solid fa-check"></i>
-                            </button>
-                          )}
-
-                          {/* Cancel */}
-                          {pat.appointment_date && status === 'Scheduled' && (
-                            <button
-                              type="button"
-                              title="Cancel Appointment"
-                              aria-label="Cancel Appointment"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUpdateAppointmentStatus(pat, 'Cancelled');
-                              }}
-                              style={{
-                                width: '36px',
-                                height: '36px',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                backgroundColor: '#fee2e2',
-                                color: '#991b1b',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              <i className="fa-solid fa-xmark"></i>
-                            </button>
-                          )}
-                          {/* Edit */}
-                          <button
-                            type="button"
-                            title="Edit Patient"
-                            aria-label="Edit Patient"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openEditModal(pat);
-                            }}
-                            style={{
-                              width: '36px',
-                              height: '36px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              backgroundColor: '#0d9488',
-                              color: '#ffffff',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <i className="fa-solid fa-pen"></i>
-                          </button>
-
-                          {/* Delete */}
-                          <button
-                            type="button"
-                            title="Delete Patient"
-                            aria-label="Delete Patient"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeletePatient(pat);
-                            }}
-                            className="delete-patient-btn"
-                          >
-                            <i className="fa-solid fa-trash"></i>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
+          <div className="table-container">
+            <table className="modern-table">
+              <thead>
                 <tr>
-                  <td colSpan="8" className="no-data">
-                    No patients found in database.
-                  </td>
+                  <th>Patient ID</th>
+                  <th>Patient Name</th>
+                  <th>Species</th>
+                  <th>Owner</th>
+                  <th>Appointment Date</th>
+                  <th>Time</th>
+                  <th>Status</th>
+                  <th>Action</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {paginatedPatients.length > 0 ? (
+                  paginatedPatients.map((pat) => {
+                    const status = getAppointmentStatus(pat);
+                    const appDate = pat.appointment_date ? new Date(pat.appointment_date).toLocaleDateString() : 'N/A';
+                    const appTime = pat.appointment_time || 'N/A';
 
-        {/* Patient Table Pagination */}
-        <div className="patient-pagination">
-          <div className="patient-pagination-size">
-            <label htmlFor="patient-page-size">Rows per page:</label>
+                    return (
+                      <tr
+                        key={pat.patient_id}
+                        onClick={() => setSelectedPatient(pat)}
+                        style={{ cursor: 'pointer' }}
+                        title="Click to view patient details"
+                      >
+                        <td><span className="item-id">#{pat.patient_id.substring(0, 8)}</span></td>
+                        <td><strong>{pat.patient_name}</strong></td>
+                        <td><span className="species-tag">{pat.species}</span></td>
+                        <td>{pat.owner_name}</td>
+                        <td>{appDate}</td>
+                        <td>{appTime}</td>
+                        <td>
+                          <span className={`status-badge ${status.toLowerCase()}`}>
+                            {status}
+                          </span>
+                        </td>
+                        <td>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px'
+                            }}
+                          >
 
-            <select
-              id="patient-page-size"
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-            >
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-              <option value={15}>15</option>
-              <option value={20}>20</option>
-            </select>
+                            {/* Complete */}
+                            {pat.appointment_date && status === 'Scheduled' && (
+                              <button
+                                type="button"
+                                className="patient-action-btn complete"
+                                title="Complete Appointment"
+                                aria-label="Complete Appointment"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUpdateAppointmentStatus(pat, 'Completed');
+                                }}
+                              >
+                                <i className="fa-solid fa-check"></i>
+                              </button>
+                            )}
+
+                            {/* Cancel */}
+                            {pat.appointment_date && status === 'Scheduled' && (
+                              <button
+                                type="button"
+                                className="patient-action-btn cancel"
+                                title="Cancel Appointment"
+                                aria-label="Cancel Appointment"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUpdateAppointmentStatus(pat, 'Cancelled');
+                                }}
+                              >
+                                <i className="fa-solid fa-xmark"></i>
+                              </button>
+                            )}
+                            {/* Edit */}
+                            <button
+                              type="button"
+                              className="patient-action-btn edit"
+                              title="Edit Patient"
+                              aria-label="Edit Patient"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditModal(pat);
+                              }}
+                            >
+                              <i className="fa-solid fa-pen"></i>
+                            </button>
+
+                            {/* Delete */}
+                            <button
+                              type="button"
+                              title="Delete Patient"
+                              aria-label="Delete Patient"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeletePatient(pat);
+                              }}
+                              className="delete-patient-btn"
+                            >
+                              <i className="fa-solid fa-trash"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="8" className="no-data">
+                      No patients found in database.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
 
-          <span className="patient-pagination-range">
-            Showing{' '}
-            {filteredPatients.length === 0
-              ? '0–0'
-              : `${startIndex + 1}–${Math.min(
+          {/* Patient Table Pagination */}
+          <div className="patient-pagination">
+            <div className="patient-pagination-size">
+              <label htmlFor="patient-page-size">Rows per page:</label>
+
+              <select
+                id="patient-page-size"
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={15}>15</option>
+                <option value={20}>20</option>
+              </select>
+            </div>
+
+            <span className="patient-pagination-range">
+              Showing{' '}
+              {filteredPatients.length === 0
+                ? '0–0'
+                : `${startIndex + 1}–${Math.min(
                   startIndex + pageSize,
                   filteredPatients.length
                 )}`}
-            {' '}of {filteredPatients.length} patients
-          </span>
-
-          <div className="patient-pagination-controls">
-            <button
-              type="button"
-              disabled={currentPage === 1}
-              onClick={() =>
-                setCurrentPage((prev) => Math.max(1, prev - 1))
-              }
-            >
-              Previous
-            </button>
-
-            <span>
-              Page {currentPage} of {totalPages}
+              {' '}of {filteredPatients.length} patients
             </span>
 
-            <button
-              type="button"
-              disabled={currentPage >= totalPages}
-              onClick={() =>
-                setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-              }
-            >
-              Next
-            </button>
+            <div className="patient-pagination-controls">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() =>
+                  setCurrentPage((prev) => Math.max(1, prev - 1))
+                }
+              >
+                Previous
+              </button>
+
+              <span>
+                Page {currentPage} of {totalPages}
+              </span>
+
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                }
+              >
+                Next
+              </button>
+            </div>
           </div>
-        </div>
         </>
       )
       }
