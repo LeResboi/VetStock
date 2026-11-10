@@ -7,6 +7,9 @@ export default function Forecast() {
   const [error, setError] = useState(null);
   const [itemForecasts, setItemForecasts] = useState([]);
 
+  const [generatedAt, setGeneratedAt] = useState(null);
+  const [retryAfter, setRetryAfter] = useState(null);
+
   const formatQuantity = (value) => {
     if (value === null || value === undefined) {
       return 'Insufficient data';
@@ -16,17 +19,21 @@ export default function Forecast() {
   };
 
 
-  const fetchAiForecast = async () => {
+
+  const fetchAiForecast = async (refresh = false) => {
     setLoading(true);
     setError(null);
+    setRetryAfter(null);
 
     try {
       const token = localStorage.getItem('token');
 
       const response = await fetch(
-        'http://localhost:3001/api/forecast-ai',
+        refresh
+          ? 'http://localhost:3001/api/forecast-ai/refresh'
+          : 'http://localhost:3001/api/forecast-ai',
         {
-          method: 'GET',
+          method: refresh ? 'POST' : 'GET',
           headers: {
             Authorization: `Bearer ${token}`
           }
@@ -36,9 +43,14 @@ export default function Forecast() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
+        const requestError = new Error(
           data.message || 'Failed to fetch AI insights.'
         );
+
+        requestError.retryAfterSeconds =
+          data.retry_after_seconds ?? null;
+
+        throw requestError;
       }
 
       if (data.success) {
@@ -49,12 +61,13 @@ export default function Forecast() {
             ? data.item_forecasts
             : []
         );
+
+        setGeneratedAt(data.generated_at || null);
       } else {
-        setError(
+        throw new Error(
           data.message || 'Failed to fetch AI insights.'
         );
       }
-
 
     } catch (err) {
       console.error('Error fetching AI forecast:', err);
@@ -62,13 +75,21 @@ export default function Forecast() {
       setError(
         err.message || 'Cannot connect to backend server.'
       );
+
+      setRetryAfter(err.retryAfterSeconds ?? null);
+
     } finally {
       setLoading(false);
     }
   };
+
+
   useEffect(() => {
     fetchAiForecast();
   }, []);
+
+  const hasForecastData =
+    Boolean(aiReport) || itemForecasts.length > 0;
 
 
   const parseAiReportToCards = (text) => {
@@ -85,7 +106,9 @@ export default function Forecast() {
         title = "VetStock Insight";
       }
 
-      const contentLines = lines.slice(1).filter(line => line.trim() !== '');
+      const contentLines = lines.slice(1).filter(
+        line => line.trim() !== ''
+      );
 
       let icon = 'fa-solid fa-chart-line';
 
@@ -100,14 +123,14 @@ export default function Forecast() {
       const processedContent = contentLines.map((line, i) => {
         let cleanLine = line.trim();
 
-        cleanLine = cleanLine.replace(/^[-*•]\s*/, '').replace(/^\d+\.\s*/, '');
+        cleanLine = cleanLine
+          .replace(/^[-*•]\s*/, '')
+          .replace(/^\d+\.\s*/, '');
 
         if (!cleanLine) return null;
 
-        const formattedLine = cleanLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
         return (
-          <li key={i} dangerouslySetInnerHTML={{ __html: formattedLine }} />
+          <li key={i}>{cleanLine}</li>
         );
       }).filter(Boolean);
 
@@ -117,6 +140,7 @@ export default function Forecast() {
             <i className={icon}></i>
             <h3>{title.replace(/^\d+\.\s*/, '')}</h3>
           </div>
+
           <div className="card-content">
             <ul>{processedContent}</ul>
           </div>
@@ -124,7 +148,11 @@ export default function Forecast() {
       );
     });
 
-    return <div className="ai-cards-grid">{parsedSections}</div>;
+    return (
+      <div className="ai-cards-grid">
+        {parsedSections}
+      </div>
+    );
   };
 
   return (
@@ -135,7 +163,11 @@ export default function Forecast() {
           <h2>VetStock AI Intelligence</h2>
           <p>Smart inventory analytics and restocking recommendations powered by Open AI.</p>
         </div>
-        <button className="refresh-btn" onClick={fetchAiForecast} disabled={loading}>
+        <button
+          className="refresh-btn"
+          onClick={() => fetchAiForecast(true)}
+          disabled={loading}
+        >
           <i className={`fa-solid fa-rotate-right ${loading ? 'fa-spin' : ''}`}></i>
           {loading ? 'Analyzing...' : 'Refresh Analysis'}
         </button>
@@ -143,36 +175,78 @@ export default function Forecast() {
 
       {/* Main Content */}
       <div className="forecast-main-wrapper">
-        {loading ? (
+        {loading && !hasForecastData ? (
           <div className="forecast-loading-state">
             <i className="fa-solid fa-brain fa-spin fa-3x"></i>
             <h3>AI Vet is processing data...</h3>
-            <p>Analyzing historical trends and predicting future VetStock needs.</p>
+            <p>
+              Analyzing historical trends and predicting future VetStock needs.
+            </p>
           </div>
-        ) : error ? (
+        ) : !hasForecastData && error ? (
           <div className="forecast-error-state">
             <i className="fa-solid fa-triangle-exclamation fa-2x"></i>
             <h3>Analysis Failed</h3>
             <p>{error}</p>
-            <button className="retry-btn" onClick={fetchAiForecast}>Try Again</button>
+
+            {retryAfter !== null && (
+              <p>
+                OpenAI indicated a retry delay of {retryAfter} seconds.
+              </p>
+            )}
+
+            <button
+              className="retry-btn"
+              onClick={() => fetchAiForecast(true)}
+            >
+              Try Again
+            </button>
           </div>
         ) : (
           <>
-            {/* Info Header */}
-            <div className="report-info-header">
-              <div className="ai-badge">
-                <i className="fa-solid fa-robot"></i>  OpenAI GPT-6 Luna
+            {loading && (
+              <p className="forecast-section-description">
+                <i className="fa-solid fa-spinner fa-spin"></i>
+                {' '}Refreshing AI analysis...
+              </p>
+            )}
+
+            {error && (
+              <div className="forecast-error-state">
+                <i className="fa-solid fa-triangle-exclamation"></i>
+                <h3>Refresh Failed</h3>
+                <p>{error}</p>
+
+                {retryAfter !== null && (
+                  <p>
+                    OpenAI indicated a retry delay of {retryAfter} seconds.
+                  </p>
+                )}
+
+                <button
+                  className="retry-btn"
+                  onClick={() => fetchAiForecast(true)}
+                  disabled={loading}
+                >
+                  Try Again
+                </button>
               </div>
-              <span className="timestamp">Generated Real-time</span>
-            </div>
+            )}
+
 
 
             <div className="forecast-numeric-section">
               <h3>30-Day Demand Forecast</h3>
 
+              {generatedAt && (
+                <p className="forecast-section-description">
+                  Last generated: {new Date(generatedAt).toLocaleString()}
+                </p>
+              )}
+
               <p className="forecast-section-description">
                 Estimated medicine usage based on recorded stock-outs
-                during the previous 90 days.
+                during the previous 60 days.
               </p>
 
               {itemForecasts.length === 0 ? (
@@ -296,6 +370,6 @@ export default function Forecast() {
           </>
         )}
       </div>
-    </div>
+    </div >
   );
 }

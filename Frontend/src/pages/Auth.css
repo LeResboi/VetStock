@@ -181,3 +181,39 @@ body {
 .password-toggle:hover {
   color: rgba(0, 121, 107, 0.8);
 }
+
+.success-msg {
+    background: #e0f2f1;
+    color: #00695c;
+    border: 1px solid #80cbc4;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    font-size: 13px;
+}
+
+.auth-links-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 15px;
+    width: 100%;
+}
+
+.auth-links-row span {
+    color: #00796b;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.auth-links-row span:hover {
+    text-decoration: underline;
+}
+
+.auth-links-row p {
+    width: 100%;
+    text-align: center;
+    margin: 0;
+    font-size: 13px;
+}

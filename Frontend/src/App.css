@@ -460,3 +460,20 @@ html, body, #root {
   width: 35px;
   height: auto;
 }
+
+.forgot-password-link {
+    text-align: right;
+    margin-top: -10px;
+    margin-bottom: 15px;
+}
+
+.forgot-password-link span {
+    color: #00796b;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.forgot-password-link span:hover {
+    text-decoration: underline;
+}

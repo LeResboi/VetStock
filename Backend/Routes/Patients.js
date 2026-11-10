@@ -5,6 +5,7 @@ import express from "express";
 import { supabase } from "../VetStockDatabase/Supabase.js";
 import { authenticateToken } from "../Middleware/Authentication.js";
 import { requireRole } from "../Middleware/Roles.js";
+import { createAuditLog } from "../Utils/AuditLogger.js";
 
 const router = express.Router();
 
@@ -247,7 +248,6 @@ router.post(
 
             }
 
-
             // ==================================================
             // VALIDATE SELECTED VETERINARIAN
             // ==================================================
@@ -288,8 +288,6 @@ router.post(
                 }
                 veterinarianId = veterinarian.user_id;
             }
-
-
 
             // ==================================================
             // CREATE PATIENT
@@ -340,16 +338,26 @@ router.post(
                 throw error;
             }
 
+            await createAuditLog(req, {
+                action: "PATIENT_CREATED",
+                targetTable: "patients",
+                targetId: data.patient_id,
+                details: {
+                    description: `Created patient: ${data.patient_name}`,
+                    patient_name: data.patient_name,
+                    species: data.species,
+                    owner_name: data.owner_name,
+                    appointment_date: data.appointment_date || null,
+                    appointment_veterinarian_id:
+                        data.appointment_veterinarian_id || null
+                }
+            });
 
             return res.status(201).json({
-
                 success: true,
-
                 message:
                     "Patient created successfully.",
-
                 data
-
             });
 
 
@@ -515,6 +523,18 @@ router.patch(
                 });
             }
 
+            await createAuditLog(req, {
+                action: "PATIENT_UPDATED",
+                targetTable: "patients",
+                targetId: data.patient_id,
+                details: {
+                    description: `Updated patient: ${data.patient_name}`,
+                    patient_name: data.patient_name,
+                    updated_fields: Object.keys(updates).filter(
+                        field => field !== "updated_at"
+                    )
+                }
+            });
 
             return res.json({
                 success: true,
@@ -522,26 +542,18 @@ router.patch(
                 data
             });
 
-
         } catch (error) {
 
             console.error(error);
-
             return res.status(500).json({
-
                 success: false,
-
                 message: "Failed to update patient.",
-
                 error: error.message
 
             });
-
         }
-
     }
 );
-
 
 // ======================================================
 // DEACTIVATE PATIENT
@@ -581,9 +593,17 @@ router.delete(
                     success: false,
                     message: "Patient not found."
                 });
-
             }
 
+            await createAuditLog(req, {
+                action: "PATIENT_DEACTIVATED",
+                targetTable: "patients",
+                targetId: data.patient_id,
+                details: {
+                    description: `Deactivated patient: ${data.patient_name}`,
+                    patient_name: data.patient_name
+                }
+            });
 
             return res.json({
                 success: true,
@@ -591,25 +611,19 @@ router.delete(
                 data
             });
 
-
         } catch (error) {
 
             console.error(error);
 
             return res.status(500).json({
-
                 success: false,
-
                 message: "Failed to deactivate patient.",
-
                 error: error.message
-
             });
 
         }
 
     }
 );
-
 
 export default router;

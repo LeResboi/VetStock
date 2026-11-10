@@ -5,6 +5,7 @@ import express from "express";
 import { supabase } from "../VetStockDatabase/Supabase.js";
 import { authenticateToken } from "../Middleware/Authentication.js";
 import { requireRole } from "../Middleware/Roles.js";
+import { createAuditLog } from "../Utils/AuditLogger.js";
 
 const router = express.Router();
 
@@ -240,7 +241,7 @@ router.post(
             // Make sure item belongs to user's clinic
             const { data: item, error: itemError } = await supabase
                 .from("inventory_items")
-                .select("item_id")
+                .select("item_id, item_name")
                 .eq("item_id", item_id)
                 .eq("clinic_id", req.user.clinic_id)
                 .single();
@@ -390,6 +391,7 @@ router.post(
             if (error) {
                 console.error("Stock transaction error:", error);
 
+                
                 const errorMessage =
                     error.message || "Unknown database error.";
 
@@ -432,11 +434,49 @@ router.post(
                 });
             }
 
+            // ==========================================
+            // CREATE AUDIT LOG
+            // ==========================================
+
+            const auditAction =
+                transaction_type === "IN"
+                    ? "STOCK_IN"
+                    : transaction_type === "OUT"
+                        ? "STOCK_OUT"
+                        : "STOCK_ADJUSTMENT";
+
+            await createAuditLog(req, {
+                action: auditAction,
+                targetTable: "inventory_items",
+                targetId: item.item_id,
+                details: {
+                    description:
+                        `${auditAction.replace("_", " ")}: ${parsedQuantity} units of ${item.item_name}`,
+
+                    item_id: item.item_id,
+                    item_name: item.item_name,
+
+                    batch_id: batch_id || null,
+                    batch_number: batch_number || null,
+
+                    transaction_type,
+                    quantity: parsedQuantity,
+
+                    patient_id: patient_id || null,
+                    prescription_id: prescription_id || null,
+
+                    reason: reason || null,
+                    receipt_method: receipt_method || null
+                }
+            });
+
             return res.status(201).json({
                 success: true,
                 message: "Stock transaction recorded successfully.",
                 data
             });
+
+
 
         } catch (error) {
             console.error(error);

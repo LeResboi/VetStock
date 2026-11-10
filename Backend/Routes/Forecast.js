@@ -1,4 +1,3 @@
-
 /*
  * FILE: Routes/Forecast.js
  * PURPOSE: Generate VetStock demand insights using OpenAI.
@@ -13,8 +12,89 @@ import { requireRole } from "../Middleware/Roles.js";
 
 const router = express.Router();
 
+// ======================================================
+// GET LATEST SAVED FORECAST
+// GET /api/forecast-ai
+// ======================================================
+
 router.get(
     "/",
+    authenticateToken,
+    requireRole(
+        "Administrator",
+        "Clinic Manager",
+        "Inventory Staff",
+        "Veterinarian"
+    ),
+    async (req, res) => {
+        try {
+            const clinicId = req.user.clinic_id;
+
+            if (!clinicId) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Your account has no clinic assigned."
+                });
+            }
+
+            const { data: savedForecast, error } =
+                await supabase
+                    .from("forecast_results")
+                    .select(`
+                        forecast_id,
+                        forecast,
+                        item_forecasts,
+                        inventory_count,
+                        transaction_count,
+                        generated_at
+                    `)
+                    .eq("clinic_id", clinicId)
+                    .order("generated_at", {
+                        ascending: false
+                    })
+                    .limit(1)
+                    .maybeSingle();
+
+            if (error) {
+                throw error;
+            }
+
+            // No forecast has been generated yet.
+            if (!savedForecast) {
+                return res.json({
+                    success: true,
+                    forecast_id: null,
+                    forecast: null,
+                    item_forecasts: [],
+                    inventory_count: 0,
+                    transaction_count: 0,
+                    generated_at: null
+                });
+            }
+
+            return res.json({
+                success: true,
+                forecast_id: savedForecast.forecast_id,
+                forecast: savedForecast.forecast,
+                item_forecasts: savedForecast.item_forecasts,
+                inventory_count: savedForecast.inventory_count,
+                transaction_count: savedForecast.transaction_count,
+                generated_at: savedForecast.generated_at
+            });
+
+        } catch (error) {
+            console.error("Saved forecast retrieval error:", error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Failed to retrieve the saved forecast."
+            });
+        }
+    }
+);
+
+router.post(
+    "/refresh",
     authenticateToken,
     requireRole(
         "Administrator",
@@ -55,8 +135,8 @@ router.get(
             const DAY_MS = 24 * 60 * 60 * 1000;
             const now = new Date();
 
-            const cutoff90Days = new Date(
-                now.getTime() - 90 * DAY_MS
+            const cutoff60Days = new Date(
+                now.getTime() - 60 * DAY_MS
             );
 
             const cutoff30Days = new Date(
@@ -77,6 +157,7 @@ router.get(
                         unit_of_measure,
                         min_stock_level,
                         reorder_point,
+                        created_at,
                         inventory_batches (
                             quantity,
                             expiration_date,
@@ -88,7 +169,6 @@ router.get(
             if (itemError) {
                 throw itemError;
             }
-
 
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -147,16 +227,29 @@ router.get(
                     ({ expiry }) => expiry && expiry < today
                 ).length;
 
+                const itemCreatedAt = item.created_at
+                    ? new Date(item.created_at)
+                    : null;
+
+                const itemAgeDays =
+                    itemCreatedAt && !Number.isNaN(itemCreatedAt.getTime())
+                        ? Math.floor(
+                            (now.getTime() - itemCreatedAt.getTime()) / DAY_MS
+                        )
+                        : 0;
+
                 return {
                     item_id: item.item_id,
                     name: item.item_name,
                     category: item.category,
+                    created_at: item.created_at,
                     unit_of_measure: item.unit_of_measure,
                     current_stock: totalQuantity,
                     minimum_stock: Number(item.min_stock_level || 0),
                     reorder_point: Number(item.reorder_point || 0),
                     expiring_within_30_days: expiringWithin30Days,
-                    expired_batch_count: expiredBatchCount
+                    expired_batch_count: expiredBatchCount,
+                    item_age_days: itemAgeDays
                 };
             });
 
@@ -172,58 +265,56 @@ router.get(
             );
 
             if (itemIds.length > 0) {
-                const {
-                    data: transactions,
-                    error: transactionError
-                } = await supabase
-                    .from("stock_transactions")
-                    .select(`
-                        item_id,
-                        transaction_type,
-                        quantity,
-                        created_at
-                    `)
-                    .in("item_id", itemIds)
-                    .gte("created_at", cutoff90Days.toISOString())
-                    .order("created_at", {
-                        ascending: false
-                    })
-                    .limit(1000);
+                const pageSize = 1000;
+                let from = 0;
+                let hasMore = true;
 
-                if (transactionError) {
-                    throw transactionError;
+                while (hasMore) {
+                    const {
+                        data: transactions,
+                        error: transactionError
+                    } = await supabase
+                        .from("stock_transactions")
+                        .select(`
+                item_id,
+                transaction_type,
+                quantity,
+                created_at
+            `)
+                        .in("item_id", itemIds)
+                        .gte("created_at", cutoff60Days.toISOString())
+                        .lte("created_at", now.toISOString())
+                        .order("created_at", {
+                            ascending: false
+                        })
+                        .range(from, from + pageSize - 1);
+
+                    if (transactionError) {
+                        throw transactionError;
+                    }
+
+                    const currentPage = transactions || [];
+
+                    transactionSummary.push(...currentPage);
+
+                    hasMore = currentPage.length === pageSize;
+                    from += pageSize;
                 }
-
-                transactionSummary = transactions || [];
             }
 
 
             // ==============================================
-            // 3. CALCULATE NUMERICAL DEMAND FORECASTS
+            // 4. CALCULATE NUMERICAL DEMAND FORECASTS
             // ==============================================
 
             function isStockOutTransaction(type) {
-                const normalized = String(type || "")
-                    .toLowerCase()
-                    .replace(/[_-]+/g, " ")
-                    .replace(/\s+/g, " ")
-                    .trim();
-
-                return [
-                    "stock out",
-                    "stockout",
-                    "out",
-                    "dispense",
-                    "dispensed",
-                    "consumption",
-                    "consumed",
-                    "used"
-                ].includes(normalized);
+                return String(type || "").trim().toUpperCase() === "OUT";
             }
 
             function roundToTwo(value) {
                 return Math.round((value + Number.EPSILON) * 100) / 100;
             }
+
 
             const itemForecasts = inventorySummary.map(item => {
                 const stockOuts = transactionSummary
@@ -238,12 +329,12 @@ router.get(
                     }))
                     .filter(transaction =>
                         !Number.isNaN(transaction.date.getTime()) &&
-                        transaction.date >= cutoff90Days &&
+                        transaction.date >= cutoff60Days &&
                         transaction.date <= now &&
                         transaction.quantity > 0
                     );
 
-
+                // Get all recorded transaction dates for this item.
                 const itemTransactionDates = transactionSummary
                     .filter(transaction =>
                         transaction.item_id === item.item_id &&
@@ -252,7 +343,7 @@ router.get(
                     .map(transaction => new Date(transaction.created_at))
                     .filter(date =>
                         !Number.isNaN(date.getTime()) &&
-                        date >= cutoff90Days &&
+                        date >= cutoff60Days &&
                         date <= now
                     );
 
@@ -263,29 +354,33 @@ router.get(
                         )
                         : null;
 
-                // Approximate how much of the 90-day observation window
-                // has recorded transaction history for this item.
+                // Estimate how far back recorded transactions extend.
                 const historyCoverageDays =
                     earliestTransactionTime === null
                         ? 0
                         : Math.min(
-                            90,
+                            60,
                             Math.floor(
                                 (now.getTime() - earliestTransactionTime) / DAY_MS
                             ) + 1
                         );
 
-                // Split the history into the latest 30 days
-                // and the preceding 60 days.
+                // Divide the 60-day period into two 30-day periods.
+                const previous30Days = stockOuts.filter(
+                    transaction => transaction.date < cutoff30Days
+                );
+
                 const recent30Days = stockOuts.filter(
                     transaction => transaction.date >= cutoff30Days
                 );
 
-                const previous60Days = stockOuts.filter(
-                    transaction => transaction.date < cutoff30Days
+                // Calculate recorded consumption.
+                const total60Days = stockOuts.reduce(
+                    (total, transaction) => total + transaction.quantity,
+                    0
                 );
 
-                const total90Days = stockOuts.reduce(
+                const actualPrevious30Days = previous30Days.reduce(
                     (total, transaction) => total + transaction.quantity,
                     0
                 );
@@ -295,30 +390,30 @@ router.get(
                     0
                 );
 
-                const actualPrevious60Days = previous60Days.reduce(
-                    (total, transaction) => total + transaction.quantity,
-                    0
-                );
-
-                // A missing history is not the same as zero demand.
-                const hasComplete90DayHistory = historyCoverageDays >= 90;
+                // Check whether recorded transactions span the full 60-day period.
+                // This does not guarantee that every transaction was recorded.
+                const has60DayTransactionSpan =
+                    historyCoverageDays >= 60 &&
+                    item.item_age_days >= 60;
 
                 const hasDemandHistory =
-                    hasComplete90DayHistory &&
+                    has60DayTransactionSpan &&
                     stockOuts.length > 0 &&
-                    total90Days > 0;
+                    total60Days > 0;
 
                 const currentStock = Number(item.current_stock) || 0;
 
+                // Average daily demand over the previous 60 days.
                 const avgDailyDemand = hasDemandHistory
-                    ? total90Days / 90
+                    ? total60Days / 60
                     : null;
-                // Baseline forecast: average daily usage over 90 days,
-                // multiplied by the next 30 days.
+
+                // Project demand for the next 30 days.
                 const forecastNext30Days = hasDemandHistory
                     ? roundToTwo(avgDailyDemand * 30)
                     : null;
 
+                // Estimate days until available stock runs out.
                 const daysUntilStockOut =
                     hasDemandHistory && avgDailyDemand > 0
                         ? roundToTwo(currentStock / avgDailyDemand)
@@ -338,11 +433,11 @@ router.get(
                         )
                         : null;
 
-                // Compare a forecast based on the previous 60 days
-                // with the actual usage during the most recent 30 days.
+                // Backtest: use the first 30 days to predict
+                // the actual demand in the latest 30 days.
                 const backtestPrediction =
-                    hasComplete90DayHistory && previous60Days.length > 0
-                        ? roundToTwo((actualPrevious60Days / 60) * 30)
+                    has60DayTransactionSpan && actualPrevious30Days > 0
+                        ? roundToTwo(actualPrevious30Days)
                         : null;
 
                 const backtestAbsoluteError =
@@ -352,40 +447,25 @@ router.get(
                         )
                         : null;
 
-                // Compare daily usage in the latest 30 days with the
-                // daily usage in the preceding 60 days.
+                // Compare daily consumption between both periods.
+                const previousDailyDemand = actualPrevious30Days / 30;
                 const recentDailyDemand = actualRecent30Days / 30;
-                const previousDailyDemand = actualPrevious60Days / 60;
 
                 let demandTrend = "Insufficient comparison history";
 
-                if (
-                    previous60Days.length > 0 &&
-                    recent30Days.length > 0
-                ) {
-                    if (
-                        previousDailyDemand > 0 &&
-                        recentDailyDemand > previousDailyDemand * 1.2
-                    ) {
+                if (previousDailyDemand > 0) {
+                    if (recentDailyDemand > previousDailyDemand * 1.2) {
                         demandTrend = "Increasing";
-                    } else if (
-                        previousDailyDemand > 0 &&
-                        recentDailyDemand < previousDailyDemand * 0.8
-                    ) {
+                    } else if (recentDailyDemand < previousDailyDemand * 0.8) {
                         demandTrend = "Decreasing";
                     } else {
                         demandTrend = "Stable";
                     }
-                } else if (
-                    previous60Days.length > 0 &&
-                    recent30Days.length === 0
-                ) {
-                    demandTrend = "No recent stock-outs recorded";
-                } else if (
-                    previous60Days.length === 0 &&
-                    recent30Days.length > 0
-                ) {
-                    demandTrend = "Insufficient comparison history";
+                } else if (recentDailyDemand > 0) {
+                    demandTrend = "Newly recorded demand; insufficient baseline";
+                } else if (has60DayTransactionSpan) {
+                    demandTrend =
+                        "No OUT transactions recorded; demand cannot be confirmed";
                 }
 
                 const restockThreshold = Math.max(
@@ -414,130 +494,218 @@ router.get(
                     item_id: item.item_id,
                     name: item.name,
                     category: item.category,
+                    unit_of_measure: item.unit_of_measure,
 
                     current_stock: currentStock,
                     minimum_stock: item.minimum_stock,
                     reorder_point: item.reorder_point,
 
+                    expiring_within_30_days: item.expiring_within_30_days,
+                    expired_batch_count: item.expired_batch_count,
+
                     historical_stock_out_transaction_count: stockOuts.length,
-                    historical_stock_out_units_90_days: roundToTwo(total90Days),
+
+                    historical_stock_out_units_60_days:
+                        roundToTwo(total60Days),
+
+                    actual_stock_out_units_previous_30_days:
+                        roundToTwo(actualPrevious30Days),
+
                     actual_stock_out_units_recent_30_days:
                         roundToTwo(actualRecent30Days),
 
-                    average_daily_demand_90_days: hasDemandHistory
+                    average_daily_demand_60_days: hasDemandHistory
                         ? roundToTwo(avgDailyDemand)
                         : null,
 
                     estimated_demand_next_30_days: forecastNext30Days,
+
                     estimated_days_until_stockout: daysUntilStockOut,
+
                     potential_shortfall_next_30_days: potentialShortfall,
+
                     projected_remaining_stock_after_30_days:
                         projectedRemainingStock,
 
                     demand_trend: demandTrend,
+
                     risk_status: riskStatus,
 
-                    // ADD THESE TWO FIELDS HERE
                     history_coverage_days: historyCoverageDays,
 
-                    history_status: hasComplete90DayHistory
-                        ? "Sufficient recorded history"
-                        : "Insufficient recorded history",
+                    history_status: has60DayTransactionSpan
+                        ? "Recorded transactions span 60 days; completeness not verified"
+                        : "Insufficient recorded transaction span",
 
                     backtest: {
                         predicted_demand_last_30_days:
                             backtestPrediction,
+
                         actual_demand_last_30_days:
                             roundToTwo(actualRecent30Days),
+
                         absolute_error_units:
                             backtestAbsoluteError
                     }
                 };
             });
 
-            // ==============================================
-            // 4. ASK OPENAI TO ANALYZE THE CLINIC'S DATA
-            // ==============================================
+            // Prepare a compact version of the forecasts for OpenAI.
+            // The complete itemForecasts array will still be saved to Supabase.
+
+            const aiForecastSummary = itemForecasts.map(item => ({
+                name: item.name,
+                category: item.category,
+                unit: item.unit_of_measure,
+
+                current_stock: item.current_stock,
+                minimum_stock: item.minimum_stock,
+                reorder_point: item.reorder_point,
+
+                expiring_batches: item.expiring_within_30_days,
+                expired_batches: item.expired_batch_count,
+
+                stock_out_count: item.historical_stock_out_transaction_count,
+                consumption_60_days: item.historical_stock_out_units_60_days,
+
+                previous_30_days: item.actual_stock_out_units_previous_30_days,
+                recent_30_days: item.actual_stock_out_units_recent_30_days,
+
+                average_daily_demand: item.average_daily_demand_60_days,
+                projected_demand_30_days: item.estimated_demand_next_30_days,
+                days_until_stockout: item.estimated_days_until_stockout,
+
+                potential_shortfall: item.potential_shortfall_next_30_days,
+                projected_remaining_stock:
+                    item.projected_remaining_stock_after_30_days,
+
+                demand_trend: item.demand_trend,
+                risk_status: item.risk_status,
+
+                history_coverage_days: item.history_coverage_days,
+                history_status: item.history_status,
+
+                backtest_predicted: item.backtest.predicted_demand_last_30_days,
+                backtest_actual: item.backtest.actual_demand_last_30_days,
+                backtest_error: item.backtest.absolute_error_units
+            }));
 
             const prompt = `
-You are VetStock's veterinary inventory demand analysis assistant.
+You are VetStock AI, a veterinary inventory demand analysis assistant.
 
-Analyze only the inventory and stock transaction data provided.
+Your responsibility is to analyze the clinic's inventory information and interpret the numerical forecasts calculated by the VetStock backend.
 
-IMPORTANT RULES:
-- Use only the supplied data.
-- Never invent stock quantities, transactions, dates, or usage rates.
-- Distinguish current stock from historical demand.
-- Do not treat stock-in transactions as medicine consumption.
-- Use transaction dates and transaction types when discussing demand.
-- If transaction types do not clearly identify stock-in and stock-out,
-  explain that limitation.
-- Do not present an unsupported estimate as a reliable prediction.
-- Base restocking recommendations on the supplied stock levels,
-  minimum stock levels, reorder points, and transaction history.
-- Explain when more historical consumption data is needed.
+IMPORTANT ANALYSIS RULES:
 
-Write a clear report using exactly these Markdown sections:
+1. Use only the inventory and forecast data provided.
+2. Never invent stock quantities, demand, transactions, dates, or predictions.
+3. Treat all backend-calculated numerical forecasts as authoritative.
+4. Never modify, recalculate, or contradict backend forecast values.
+5. Distinguish recorded stock consumption from projected demand.
+6. Do not treat stock-in transactions as medicine consumption.
+7. Do not interpret missing transaction records as zero demand.
+8. Clearly identify items with insufficient historical data.
+9. Base restocking recommendations on current usable stock, minimum stock levels, reorder points, and projected demand.
+10. Consider expiration risks separately from stock shortage risks.
+11. Never invent recommended purchase quantities, supplier details, or delivery dates.
+12. Explain uncertainty whenever historical data is incomplete.
+13. A 60-day transaction span does not prove that all transactions were recorded. Do not describe historical records as complete or verified.
+14. The expiring_within_30_days and expired_batch_count fields represent the number of batches, not the quantity of medicine. Never describe these values as medicine units.
+
+FORECASTING PERIODS:
+
+- Historical demand analysis: Previous 60 days.
+- Demand comparison: Previous 30 days versus most recent 30 days.
+- Future demand projection: Next 30 days.
+- Expiration monitoring: Next 30 days.
+
+REPORT FORMAT:
 
 ## Demand Overview
-Summarize demand patterns supported by the dated transaction history.
-Discuss possible trends only when the data supports them.
-State when the historical data is insufficient for a reliable forecast.
+
+Summarize recorded medicine consumption over the previous 60 days.
+
+Discuss demand trends using the comparison between the previous 30 days and the latest 30 days.
+
+Explain projected demand for the next 30 days.
+
+Identify medicines with increasing, decreasing, or stable demand only when supported by the supplied data.
+
+Clearly identify medicines without sufficient historical information.
 
 ## Restocking Recommendations
-Identify items at or below their minimum stock or reorder point.
-Explain the evidence behind each recommendation.
-Do not invent recommended quantities.
+
+Prioritize medicines based on:
+
+- Items with zero usable stock.
+- Items at or below their minimum stock level.
+- Items at or below their reorder point.
+- Items with projected shortages within the next 30 days.
+
+Explain why each item requires attention using its actual stock levels and calculated forecasts.
+
+Do not invent reorder quantities.
 
 ## Stock and Expiration Risks
-Identify low-stock items and items with batches expiring within
-30 days. Do not claim an item has expired unless the supplied data
-supports that conclusion.
+
+Identify:
+
+- Medicines with critically low or zero usable stock.
+- Medicines with expired batches.
+- Medicines with batches expiring within 30 days.
+- Medicines with projected stock shortages.
+
+Do not count expired batches as usable inventory.
+
+Do not confuse expiring stock with already expired stock.
+
+## Forecast Accuracy
+
+Explain the backend backtesting results.
+
+Compare the predicted demand for the latest 30 days against the actual recorded demand during that period.
+
+Describe the difference between predicted and actual demand using the supplied absolute error. Do not classify an error as large or small using an arbitrary threshold.
+
+Do not claim that a forecast is accurate without supporting evidence.
 
 ## Forecast Limitations
-Describe missing or insufficient historical data.
-Clearly distinguish observed information from estimates.
-Recommend what additional data would improve forecasting.
 
-Inventory data:
-${JSON.stringify(inventorySummary, null, 2)}
+Explain limitations such as:
 
-Stock transaction history:
-${JSON.stringify(transactionSummary, null, 2)}
+- Insufficient transaction history.
+- Missing or inconsistent stock transaction records.
+- Unusual changes in medicine consumption.
+- Future deliveries not included in the projection.
+- Seasonal demand changes not accounted for.
 
-Numerical baseline forecasts calculated by the backend:
-${JSON.stringify(itemForecasts, null, 2)}
+Clearly distinguish actual recorded information from estimated future demand.
 
-The backend-calculated numerical forecasts are the authoritative
-baseline numbers. Explain them, but do not change or invent their
-values.
+WRITING REQUIREMENTS:
 
-Explain that the 30-day demand estimates use the average daily
-stock-out quantity over the last 90 days.
+- Use clear, professional, and understandable language.
+- Keep explanations concise and relevant.
+- Prioritize the most urgent inventory concerns.
+- Avoid repeating the same information across sections.
+- Do not provide unsupported veterinary treatment recommendations.
+- Never present an estimate as a confirmed future outcome.
 
-Discuss the backtest by comparing the prediction made from the
-previous 60 days with the actual stock-out quantity in the most
-recent 30 days. A large absolute error indicates that the baseline
-may not predict demand accurately for that item.
+CURRENT DATE:
+${now.toISOString().slice(0, 10)}
 
-If there is insufficient transaction history, say so clearly.
-These estimates do not account for future deliveries, sudden
-demand changes, or seasonal patterns.
+BACKEND-CALCULATED FORECASTS:
+${JSON.stringify(aiForecastSummary)}
 
-Current date:
-${new Date().toISOString().slice(0, 10)}
+If the inventory is empty, explain that inventory records must be added before inventory recommendations can be generated.
 
-If there are no inventory items, explain that inventory must be added
-before stock recommendations can be made.
-
-If there are no stock transactions, clearly state that historical
-demand cannot yet be evaluated reliably.
+If historical transaction data is unavailable, explain that reliable demand forecasting is not yet possible.
 `;
+
 
             const response = await openai.responses.create({
                 model,
                 input: prompt,
-                max_output_tokens: 1800
+                max_output_tokens: 1200
             });
 
             const forecast = response.output_text?.trim();
@@ -549,25 +717,61 @@ demand cannot yet be evaluated reliably.
             }
 
             // ==============================================
-            // 5. RETURN RESULTS TO THE FRONTEND
+            // 6. SAVE GENERATED FORECAST TO SUPABASE
+            // ==============================================
+
+            const { data: savedForecast, error: saveError } =
+                await supabase
+                    .from("forecast_results")
+                    .insert({
+                        clinic_id: clinicId,
+                        forecast,
+                        item_forecasts: itemForecasts,
+                        inventory_count: inventorySummary.length,
+                        transaction_count: transactionSummary.length
+                    })
+                    .select(`
+                        forecast_id,
+                        generated_at
+                    `)
+                    .single();
+
+            if (saveError) {
+                throw saveError;
+            }
+
+            // ==============================================
+            // 7. RETURN RESULTS TO THE FRONTEND
             // ==============================================
 
             return res.json({
                 success: true,
+                forecast_id: savedForecast.forecast_id,
                 forecast,
                 item_forecasts: itemForecasts,
                 inventory_count: inventorySummary.length,
                 transaction_count: transactionSummary.length,
-                generated_at: new Date().toISOString()
+                generated_at: savedForecast.generated_at
             });
 
         } catch (error) {
             console.error("OpenAI forecast error:", error);
 
+            if (error.status === 429) {
+                const retryAfter = error.headers?.get("retry-after");
+
+                return res.status(429).json({
+                    success: false,
+                    message: "AI forecasting is temporarily unavailable because the OpenAI rate limit has been reached. Please try again later.",
+                    retry_after_seconds: retryAfter
+                        ? Number(retryAfter)
+                        : null
+                });
+            }
+
             return res.status(500).json({
                 success: false,
-                message:
-                    "Failed to generate the AI forecast. Check the backend logs for details."
+                message: "Failed to generate AI forecast."
             });
         }
     }

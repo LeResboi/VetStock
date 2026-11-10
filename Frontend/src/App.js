@@ -12,6 +12,8 @@ import AuditLogs from './pages/Audit_Logs';
 import Notifications from './pages/Notifications';
 import Patient from './pages/Patient';
 import UserManagement from "./pages/UserManagement";
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 
 function DashboardRoute() {
@@ -30,6 +32,8 @@ function Routing() {
             <Routes>
                 {/* Login and registration */}
                 <Route path="/" element={<AuthApp />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
 
                 {/* All application pages share the navbar */}
                 <Route element={<MainLayout />}>

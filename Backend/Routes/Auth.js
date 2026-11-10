@@ -4,7 +4,9 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import crypto from "node:crypto";
 
+import { sendPasswordResetEmail } from "../Utils/EmailService.js";
 import { supabase } from "../VetStockDatabase/Supabase.js";
 import { createAuditLog } from "../Utils/AuditLogger.js";
 import { authenticateToken } from "../Middleware/Authentication.js";
@@ -494,6 +496,254 @@ router.post("/register", async (req, res) => {
         });
     }
 });
+
+
+// ============================================================
+// FORGOT PASSWORD
+// PUBLIC - SEND PASSWORD RESET EMAIL
+// ============================================================
+
+router.post("/forgot-password", async (req, res) => {
+    try {
+        const email =
+            typeof req.body.email === "string"
+                ? req.body.email.trim().toLowerCase()
+                : "";
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email address is required."
+            });
+        }
+
+        const genericMessage =
+            "If an account exists with that email, a password reset link will be sent.";
+
+        // Find the registered user
+        const { data: user, error } = await supabase
+            .from("users")
+            .select("user_id, email, is_active")
+            .eq("email", email)
+            .maybeSingle();
+
+        if (error) throw error;
+
+        // Do not reveal whether the email exists
+        if (!user || !user.is_active) {
+            return res.json({
+                success: true,
+                message: genericMessage
+            });
+        }
+
+        // Generate a secure random token
+        const resetToken = crypto
+            .randomBytes(32)
+            .toString("hex");
+
+        // Store only the SHA-256 hash
+        const tokenHash = crypto
+            .createHash("sha256")
+            .update(resetToken)
+            .digest("hex");
+
+        const expiresAt = new Date(
+            Date.now() + 15 * 60 * 1000
+        ).toISOString();
+
+        // Invalidate previous unused reset tokens
+        const { error: invalidateError } = await supabase
+            .from("password_reset_tokens")
+            .update({
+                used_at: new Date().toISOString()
+            })
+            .eq("user_id", user.user_id)
+            .is("used_at", null);
+
+        if (invalidateError) throw invalidateError;
+
+        // Save the new token hash
+        const { error: insertError } = await supabase
+            .from("password_reset_tokens")
+            .insert({
+                user_id: user.user_id,
+                token_hash: tokenHash,
+                expires_at: expiresAt
+            });
+
+        if (insertError) throw insertError;
+
+        // Create the password reset link
+        const resetLink =
+            `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+
+        try {
+            await sendPasswordResetEmail(
+                user.email,
+                resetLink
+            );
+        } catch (emailError) {
+            console.error(
+                "Password reset email error:",
+                emailError.message
+            );
+
+            const { error: deleteError } = await supabase
+                .from("password_reset_tokens")
+                .delete()
+                .eq("token_hash", tokenHash);
+
+            if (deleteError) {
+                console.error("Token cleanup error:", deleteError);
+            }
+
+            throw emailError;
+        }
+
+        return res.json({
+            success: true,
+            message: genericMessage
+        });
+
+    } catch (error) {
+        console.error("Forgot password error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Unable to process password reset request."
+        });
+    }
+});
+
+// ============================================================
+// RESET PASSWORD
+// PUBLIC - VALIDATE TOKEN AND UPDATE PASSWORD
+// ============================================================
+
+router.post("/reset-password", async (req, res) => {
+    try {
+        const { token, newPassword } = req.body;
+
+        if (
+            typeof token !== "string" ||
+            typeof newPassword !== "string"
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid reset request."
+            });
+        }
+
+        if (newPassword.length < 8) {
+            return res.status(400).json({
+                success: false,
+                message: "Password must be at least 8 characters."
+            });
+        }
+
+        // Hash the submitted token
+        const tokenHash = crypto
+            .createHash("sha256")
+            .update(token)
+            .digest("hex");
+
+        // Find a valid, unused, unexpired token
+        const { data: resetRecord, error } = await supabase
+            .from("password_reset_tokens")
+            .select("reset_id, user_id")
+            .eq("token_hash", tokenHash)
+            .is("used_at", null)
+            .gt("expires_at", new Date().toISOString())
+            .maybeSingle();
+
+        if (error) throw error;
+
+        if (!resetRecord) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid or expired password reset link."
+            });
+        }
+
+        // Claim the token so it cannot be reused
+        const usedAt = new Date().toISOString();
+
+        const { data: claimedToken, error: claimError } =
+            await supabase
+                .from("password_reset_tokens")
+                .update({ used_at: usedAt })
+                .eq("reset_id", resetRecord.reset_id)
+                .is("used_at", null)
+                .select("reset_id")
+                .maybeSingle();
+
+        if (claimError) throw claimError;
+
+        if (!claimedToken) {
+            return res.status(400).json({
+                success: false,
+                message: "This password reset link has already been used."
+            });
+        }
+
+        // Hash the new password
+        const passwordHash = await bcrypt.hash(
+            newPassword,
+            12
+        );
+
+        // Update the user's password
+        const { error: updateError } = await supabase
+            .from("users")
+            .update({
+                password_hash: passwordHash
+            })
+            .eq("user_id", resetRecord.user_id);
+
+        if (updateError) throw updateError;
+
+        // Invalidate any remaining reset tokens
+        const { error: cleanupError } = await supabase
+            .from("password_reset_tokens")
+            .update({
+                used_at: new Date().toISOString()
+            })
+            .eq("user_id", resetRecord.user_id)
+            .is("used_at", null);
+
+        if (cleanupError) {
+            console.error("Reset token cleanup error:", cleanupError);
+        }
+
+        // Record password change
+        await createAuditLog(req, {
+            userId: resetRecord.user_id,
+            action: "PASSWORD_RESET",
+            targetTable: "users",
+            targetId: resetRecord.user_id,
+            details: {
+                description: "User successfully reset their password."
+            }
+        });
+
+        return res.json({
+            success: true,
+            message: "Password reset successfully. You can now log in."
+        });
+
+    } catch (error) {
+        console.error("Reset password error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Unable to reset password."
+        });
+    }
+});
+
+
 // ============================================================
 // LOGIN
 // ============================================================

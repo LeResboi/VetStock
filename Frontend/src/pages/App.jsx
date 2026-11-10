@@ -10,8 +10,6 @@ import '../App.css';
 import './Auth.css';
 import illustrationImg from '../assets/Icon.png';
 
-
-
 // ============================================================
 // 1. LOGIN / REGISTER COMPONENT
 // ============================================================
@@ -246,27 +244,22 @@ export default function AuthApp() {
                         </button>
                     </form>
 
-                    <div className="auth-switch">
-                        {isRegister ? (
-                            <p>
-                                Already have an account?{' '}
-                                <span
-                                    onClick={() =>
-                                        setIsRegister(false)
-                                    }
-                                >
-                                    Login
+                    <div className="auth-links-row">
+                        {!isRegister ? (
+                            <>
+                                <span onClick={() => setIsRegister(true)}>
+                                    Create an Account.
                                 </span>
-                            </p>
+
+                                <span onClick={() => navigate('/forgot-password')}>
+                                    Forgot Password?
+                                </span>
+                            </>
                         ) : (
                             <p>
-                                New user?{' '}
-                                <span
-                                    onClick={() =>
-                                        setIsRegister(true)
-                                    }
-                                >
-                                    Register
+                                Already have an account?{' '}
+                                <span onClick={() => setIsRegister(false)}>
+                                    Login
                                 </span>
                             </p>
                         )}
