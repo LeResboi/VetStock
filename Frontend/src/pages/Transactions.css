@@ -215,6 +215,51 @@
   padding: 30px !important;
 }
 
+/* =====================================================
+   TRANSACTION DATE PICKER ICON VISIBILITY
+===================================================== */
+
+.transactions-page .modal-content input[type="date"] {
+    min-height: 40px;
+    padding: 10px 12px;
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    color-scheme: light;
+    box-sizing: border-box;
+}
+
+/* Make calendar icon visible */
+.transactions-page .modal-content input[type="date"]::-webkit-calendar-picker-indicator {
+    display: block;
+    opacity: 1;
+    cursor: pointer;
+    filter: none;
+    width: 18px;
+    height: 18px;
+}
+
+/* Focus styling */
+.transactions-page .modal-content input[type="date"]:focus {
+    outline: none;
+    border-color: #0d9488;
+    box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.15);
+}
+
+/* Quantity input spinner styling */
+.transactions-page .modal-content input[type="number"] {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    color-scheme: light;
+}
+
+/* Make quantity arrows visible */
+.transactions-page .modal-content input[type="number"]::-webkit-inner-spin-button,
+.transactions-page .modal-content input[type="number"]::-webkit-outer-spin-button {
+    opacity: 1;
+    background-color: #ffffff;
+    filter: none;
+    cursor: pointer;
+}
 
 /* ----------------------------------------------------
    MODAL POP-UP STYLING (Floating Center Dialog)

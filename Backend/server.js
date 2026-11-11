@@ -14,7 +14,7 @@ import patientRoutes from "./Routes/Patients.js";
 import reportsRoutes from "./Routes/Reports.js";
 import auditLogsRoutes from "./Routes/Audit_Logs.js";
 import forecastRoutes from "./Routes/Forecast.js";
-
+import { startAlertScheduler } from "./Utils/AlertScheduler.js";
 
 
 dotenv.config();
@@ -106,4 +106,6 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
     console.log(`VetStock API running on http://localhost:${PORT}`);
+
+    startAlertScheduler();
 });

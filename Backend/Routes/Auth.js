@@ -315,6 +315,7 @@ router.post("/register", async (req, res) => {
             });
         }
 
+
         // ----------------------------------------------------
         // VALIDATE REQUESTED ROLE
         // Applicants cannot request Administrator access.
@@ -466,6 +467,7 @@ router.post("/register", async (req, res) => {
 
         // RECORD REGISTRATION REQUEST
         await createAuditLog(req, {
+            clinicId: clinic.clinic_id,
             action: "REGISTRATION_REQUESTED",
             targetTable: "user_registration_requests",
             targetId: registrationRequest.request_id,
@@ -496,6 +498,96 @@ router.post("/register", async (req, res) => {
         });
     }
 });
+
+
+// ============================================================
+// REJECT REGISTRATION REQUEST
+// ADMINISTRATOR ONLY
+// ============================================================
+
+router.post(
+    "/registration-requests/:requestId/reject",
+    authenticateToken,
+    requireRole("Administrator"),
+    async (req, res) => {
+        try {
+            const { requestId } = req.params;
+
+            const reason =
+                typeof req.body.reason === "string"
+                    ? req.body.reason.trim()
+                    : "";
+
+            // Validate rejection reason
+            if (reason.length > 500) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Rejection reason must not exceed 500 characters."
+                });
+            }
+
+            // Update only a pending request belonging to this clinic
+            const { data: rejectedRequest, error: rejectError } =
+                await supabase
+                    .from("user_registration_requests")
+                    .update({
+                        status: "REJECTED",
+                        reviewed_by: req.user.user_id,
+                        reviewed_at: new Date().toISOString(),
+                        rejection_reason: reason || null
+                    })
+                    .eq("request_id", requestId)
+                    .eq("clinic_id", req.user.clinic_id)
+                    .eq("status", "PENDING")
+                    .select(`
+                        request_id,
+                        first_name,
+                        last_name,
+                        email
+                    `)
+                    .maybeSingle();
+
+            if (rejectError) {
+                throw rejectError;
+            }
+
+            // Check whether a pending request was actually updated
+            if (!rejectedRequest) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Pending registration request not found."
+                });
+            }
+
+            // Record the Administrator's action
+            await createAuditLog(req, {
+                userId: req.user.user_id,
+                action: "USER_REJECTED",
+                targetTable: "user_registration_requests",
+                targetId: rejectedRequest.request_id,
+                details: {
+                    description:
+                        `Rejected registration request from ${rejectedRequest.first_name} ${rejectedRequest.last_name}`,
+                    email: rejectedRequest.email,
+                    reason: reason || "No reason provided"
+                }
+            });
+
+            return res.json({
+                success: true,
+                message: "Registration request rejected successfully."
+            });
+
+        } catch (error) {
+            console.error("Reject request error:", error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Unable to reject registration request."
+            });
+        }
+    }
+);
 
 
 // ============================================================

@@ -166,9 +166,41 @@
 
 .audit-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
     text-align: left;
+}
+
+/* FIXED COLUMN WIDTHS */
+.audit-table th:nth-child(1),
+.audit-table td:nth-child(1) {
+    width: 18%;
+}
+
+.audit-table th:nth-child(2),
+.audit-table td:nth-child(2) {
+    width: 14%;
+}
+
+.audit-table th:nth-child(3),
+.audit-table td:nth-child(3) {
+    width: 13%;
+}
+
+.audit-table th:nth-child(4),
+.audit-table td:nth-child(4) {
+    width: 17%;
+}
+
+.audit-table th:nth-child(5),
+.audit-table td:nth-child(5) {
+    width: 14%;
+}
+
+.audit-table th:nth-child(6),
+.audit-table td:nth-child(6) {
+    width: 24%;
 }
 
 .audit-table thead {
@@ -287,6 +319,57 @@
     min-width: 200px;
     max-width: 350px;
     overflow-wrap: anywhere;
+}
+
+/* HEALTH RECORDS AUDIT ACTION COLORS */
+
+.audit-action.action-health-record-created {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+
+.audit-action.action-health-record-updated {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+}
+
+.audit-action.action-health-record-deleted {
+    background-color: #fee2e2;
+    color: #b91c1c;
+}
+
+.audit-action.action-followup-scheduled {
+    background-color: #f3e8ff;
+    color: #7e22ce;
+}
+
+.audit-action.action-followup-updated {
+    background-color: #ffedd5;
+    color: #c2410c;
+}
+
+/* PATIENT AUDIT ACTION COLORS */
+
+.audit-action.action-patient-created {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+
+.audit-action.action-patient-updated {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+}
+
+.audit-action.action-patient-deactivated {
+    background-color: #fee2e2;
+    color: #b91c1c;
+}
+
+/* REGISTRATION REQUESTED */
+
+.audit-action.action-registration-requested {
+    background-color: #fef3c7;
+    color: #92400e;
 }
 
 /* EMPTY AND LOADING STATES */

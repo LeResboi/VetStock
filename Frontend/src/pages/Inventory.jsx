@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Notification from '../components/Notification';
 import './Inventory.css';
 
 export default function Inventory() {
@@ -22,6 +23,13 @@ export default function Inventory() {
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState('');
+
+  // Custom notification state
+  const [notification, setNotification] = useState(null);
+
+  function showNotification(message, type = 'success') {
+    setNotification({ message, type });
+  }
 
   const [filterCategory, setFilterCategory] = useState('');
   const [saving, setSaving] = useState(false);
@@ -89,7 +97,7 @@ export default function Inventory() {
         );
       }
 
-      alert('Inventory item added successfully!');
+      showNotification('Inventory item added successfully!', 'success');
 
       setShowAddModal(false);
       setFormData({ ...initialFormData });
@@ -133,7 +141,6 @@ export default function Inventory() {
             unit_of_measure: editFormData.unit_of_measure,
             unit_price: Number(editFormData.unit_price) || 0,
             cost_price: Number(editFormData.cost_price) || 0,
-            supplier_id: editFormData.supplier_id || null,
             min_stock_level: Number(editFormData.min_stock_level) || 0,
             max_stock_level: Number(editFormData.max_stock_level) || 0,
             reorder_point: Number(editFormData.reorder_point) || 0,
@@ -148,7 +155,7 @@ export default function Inventory() {
         throw new Error(data.message || 'Failed to update inventory item.');
       }
 
-      alert('Inventory item updated successfully!');
+      showNotification('Inventory item updated successfully!', 'success');
 
       setShowEditModal(false);
       setShowDetailsModal(false);
@@ -191,7 +198,7 @@ export default function Inventory() {
         throw new Error(data.message || 'Failed to delete inventory item.');
       }
 
-      alert('Inventory item deleted successfully!');
+      showNotification('Inventory item deleted successfully!', 'success');
 
       setShowDeleteModal(false);
       setShowDetailsModal(false);
@@ -221,7 +228,6 @@ export default function Inventory() {
       unit_of_measure: item.unit_of_measure || '',
       unit_price: item.unit_price ?? 0,
       cost_price: item.cost_price ?? 0,
-      supplier_id: item.supplier_id || '',
       min_stock_level: item.min_stock_level ?? 0,
       max_stock_level: item.max_stock_level ?? 0,
       reorder_point: item.reorder_point ?? 0,
@@ -323,6 +329,13 @@ export default function Inventory() {
 
   return (
     <div className="inventory-page">
+      {notification && (
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification(null)}
+        />
+      )}
       <div className="inventory-header">
         <div>
           <h2>Inventory Management</h2>
@@ -623,14 +636,7 @@ export default function Inventory() {
                   <p>{selectedItem.reorder_point ?? 0}</p>
                 </div>
 
-                <div className="inventory-detail-item">
-                  <label>Supplier</label>
-                  <p>
-                    {Array.isArray(selectedItem.suppliers)
-                      ? selectedItem.suppliers[0]?.supplier_name || 'Not assigned'
-                      : selectedItem.suppliers?.supplier_name || 'Not assigned'}
-                  </p>
-                </div>
+
 
                 <div className="inventory-detail-item">
                   <label>Storage Conditions</label>

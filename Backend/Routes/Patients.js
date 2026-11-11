@@ -10,6 +10,44 @@ import { createAuditLog } from "../Utils/AuditLogger.js";
 const router = express.Router();
 
 // ======================================================
+// APPOINTMENT DATE VALIDATION (ASIA/MANILA)
+// ======================================================
+function getTodayManilaDate() {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+    }).formatToParts(new Date());
+
+    const year = parts.find(part => part.type === "year").value;
+    const month = parts.find(part => part.type === "month").value;
+    const day = parts.find(part => part.type === "day").value;
+
+    return `${year}-${month}-${day}`;
+}
+
+function isValidAppointmentDate(date) {
+    if (
+        typeof date !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(date)
+    ) {
+        return false;
+    }
+
+    const parsedDate = new Date(`${date}T00:00:00.000Z`);
+
+    if (
+        Number.isNaN(parsedDate.getTime()) ||
+        parsedDate.toISOString().slice(0, 10) !== date
+    ) {
+        return false;
+    }
+
+    return date >= getTodayManilaDate();
+}
+
+// ======================================================
 // GET ACTIVE VETERINARIANS
 // GET /api/patients/veterinarians
 // ======================================================
@@ -248,6 +286,17 @@ router.post(
 
             }
 
+            // Validate appointment date
+            if (
+                appointment_date &&
+                !isValidAppointmentDate(appointment_date)
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Appointment date must be today or a future date."
+                });
+            }
+
             // ==================================================
             // VALIDATE SELECTED VETERINARIAN
             // ==================================================
@@ -428,6 +477,20 @@ router.patch(
 
 
             const updates = {};
+
+            // Validate appointment date when updating
+            if (
+                req.body.appointment_date !== undefined &&
+                req.body.appointment_date !== null &&
+                req.body.appointment_date !== "" &&
+                !isValidAppointmentDate(req.body.appointment_date)
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Appointment date must be today or a future date."
+                });
+            }
+
             // Validate the selected veterinarian when updating a patient
             if (req.body.appointment_veterinarian_id !== undefined) {
                 const requestedVetId = req.body.appointment_veterinarian_id;
@@ -471,15 +534,15 @@ router.patch(
             }
 
             for (const field of allowedFields) {
-
                 if (req.body[field] !== undefined) {
-
                     updates[field] = req.body[field];
-
                 }
-
             }
 
+            // Allow appointment date to be cleared
+            if (req.body.appointment_date !== undefined) {
+                updates.appointment_date = req.body.appointment_date || null;
+            }
 
             updates.updated_at = new Date().toISOString();
 

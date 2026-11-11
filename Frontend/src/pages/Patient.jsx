@@ -1,5 +1,26 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './Patient.css';
+import Notification from '../components/Notification';
+
+
+
+
+
+// Get today's date using Asia/Manila timezone
+function getTodayManilaDate() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date());
+
+  const year = parts.find(part => part.type === 'year').value;
+  const month = parts.find(part => part.type === 'month').value;
+  const day = parts.find(part => part.type === 'day').value;
+
+  return `${year}-${month}-${day}`;
+}
 
 export default function Patient() {
   const [patients, setPatients] = useState([]);
@@ -11,6 +32,16 @@ export default function Patient() {
   const [pageSize, setPageSize] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Custom notification
+  const [notification, setNotification] = useState(null);
+
+  function showNotification(message, type = 'success') {
+    setNotification({ message, type });
+  }
+
+  // Custom confirmation modal
+  const [confirmation, setConfirmation] = useState(null);
+  const [confirming, setConfirming] = useState(false);
 
   // Modal State para sa Add Patient
   const [showModal, setShowModal] = useState(false);
@@ -166,7 +197,10 @@ export default function Patient() {
       !species.trim() ||
       !ownerName.trim()
     ) {
-      alert('Please fill in Patient Name, Species, and Owner Name.');
+      showNotification(
+        'Please fill in Patient Name, Species, and Owner Name.',
+        'error'
+      );
       return;
     }
 
@@ -206,118 +240,159 @@ export default function Patient() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        alert(
+        showNotification(
           isEditing
             ? 'Patient information successfully updated!'
-            : 'Patient successfully added!'
+            : 'Patient successfully added!',
+          'success'
         );
-
         setShowModal(false);
         setEditingPatient(null);
         resetPatientForm();
 
         await fetchPatients();
       } else {
-        alert(
-          data.message ||
-          'Failed to save patient information.'
+        showNotification(
+          data.message || 'Failed to save patient information.',
+          'error'
         );
       }
     } catch (err) {
       console.error('Error saving patient:', err);
-      alert('An error occurred. Please check the backend server.');
+      showNotification(
+        'An error occurred. Please check the backend server.',
+        'error'
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
   // Update appointment status to Completed or Cancelled
-  const handleUpdateAppointmentStatus = async (pat, newStatus) => {
+
+  const handleUpdateAppointmentStatus = (pat, newStatus) => {
     if (!pat.appointment_date) {
-      alert('This patient has no appointment to update.');
+      showNotification(
+        'This patient has no appointment to update.',
+        'error'
+      );
       return;
     }
 
-    const confirmed = window.confirm(
-      `Are you sure you want to mark ${pat.patient_name}'s appointment as ${newStatus}?`
-    );
+    setConfirmation({
+      title: 'Update Appointment Status?',
+      message: `Are you sure you want to mark ${pat.patient_name}'s appointment as ${newStatus}?`,
+      confirmText: `Mark as ${newStatus}`,
+      variant: 'default',
 
-    if (!confirmed) return;
+      onConfirm: async () => {
+        try {
+          const response = await fetch(
+            `http://localhost:3001/api/patients/${encodeURIComponent(pat.patient_id)}`,
+            {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                appointment_status: newStatus
+              })
+            }
+          );
 
-    try {
-      const response = await fetch(
-        `http://localhost:3001/api/patients/${encodeURIComponent(pat.patient_id)}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            appointment_status: newStatus
-          })
+          const data = await response.json();
+
+          if (!response.ok || !data.success) {
+            throw new Error(
+              data.message || 'Failed to update appointment status.'
+            );
+          }
+
+          showNotification(
+            `Appointment marked as ${newStatus}!`,
+            'success'
+          );
+
+          await fetchPatients();
+
+        } catch (err) {
+          console.error('Error updating appointment status:', err);
+
+          showNotification(
+            err.message || 'Could not update the appointment.',
+            'error'
+          );
         }
-      );
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        alert(`Appointment marked as ${newStatus}!`);
-        await fetchPatients();
-      } else {
-        alert(data.message || 'Failed to update appointment status.');
       }
-    } catch (err) {
-      console.error('Error updating appointment status:', err);
-      alert('Could not update the appointment. Check your backend server.');
-    }
+    });
   };
 
 
-  // Delete (deactivate) a patient after confirmation
-  const handleDeletePatient = async (pat) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${pat.patient_name}?\n\n` +
-      'This patient will be removed from the active patient list, ' +
-      'but their historical records will be preserved.\n\n' +
-      'Click OK to continue or Cancel to keep this patient.'
-    );
 
-    // Stop if the user clicks Cancel
-    if (!confirmed) return;
+  // Delete (deactivate) a patient after confirmation
+
+  const handleDeletePatient = (pat) => {
+    setConfirmation({
+      title: 'Delete Patient?',
+      message: `Are you sure you want to delete ${pat.patient_name}? This patient will be removed from the active patient list, but their historical records will be preserved.`,
+      confirmText: 'Delete Patient',
+      variant: 'danger',
+
+      onConfirm: async () => {
+        try {
+          const response = await fetch(
+            `http://localhost:3001/api/patients/${encodeURIComponent(pat.patient_id)}`,
+            {
+              method: 'DELETE',
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            }
+          );
+
+          const data = await response.json();
+
+          if (!response.ok || !data.success) {
+            throw new Error(
+              data.message || 'Failed to delete patient.'
+            );
+          }
+
+          if (selectedPatient?.patient_id === pat.patient_id) {
+            setSelectedPatient(null);
+          }
+
+          await fetchPatients();
+
+          showNotification(
+            `${pat.patient_name} was successfully removed from the active patient list.`,
+            'success'
+          );
+
+        } catch (err) {
+          console.error('Error deleting patient:', err);
+
+          showNotification(
+            err.message || 'Failed to delete patient. Please try again.',
+            'error'
+          );
+        }
+      }
+    });
+  };
+
+
+  const handleConfirmAction = async () => {
+    if (!confirmation || confirming) return;
+
+    setConfirming(true);
 
     try {
-      const response = await fetch(
-        `http://localhost:3001/api/patients/${encodeURIComponent(pat.patient_id)}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(
-          data.message || 'Failed to delete patient.'
-        );
-      }
-
-      // Close the details modal if this patient is currently selected
-      if (selectedPatient?.patient_id === pat.patient_id) {
-        setSelectedPatient(null);
-      }
-
-      // Refresh patients and automatically update the counters
-      await fetchPatients();
-
-      alert(`${pat.patient_name} was successfully removed from the active patient list.`);
-
-    } catch (err) {
-      console.error('Error deleting patient:', err);
-      alert(err.message || 'Failed to delete patient. Please try again.');
+      await confirmation.onConfirm();
+      setConfirmation(null);
+    } finally {
+      setConfirming(false);
     }
   };
 
@@ -426,6 +501,13 @@ export default function Patient() {
 
   return (
     <div className="patient-page">
+      {notification && (
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification(null)}
+        />
+      )}
       {/* Page Header */}
       <div className="patient-header">
         <div>
@@ -965,8 +1047,14 @@ export default function Patient() {
                   <input
                     type="date"
                     value={appointmentDate}
+                    min={getTodayManilaDate()}
                     onChange={(e) => setAppointmentDate(e.target.value)}
-                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #cbd5e1'
+                    }}
                   />
                 </div>
 
@@ -1051,6 +1139,121 @@ export default function Patient() {
           </div>
         )
       }
+
+
+      {/* CUSTOM CONFIRMATION MODAL */}
+      {confirmation && (
+        <div
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.55)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 12000,
+            padding: '20px'
+          }}
+          onClick={() => {
+            if (!confirming) setConfirmation(null);
+          }}
+        >
+          <div
+            className="modal-content"
+            role="dialog"
+            aria-modal="true"
+            style={{
+              background: '#ffffff',
+              padding: '28px',
+              borderRadius: '12px',
+              width: '430px',
+              maxWidth: '100%',
+              boxShadow: '0 15px 40px rgba(0,0,0,0.2)'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <div
+                style={{
+                  width: '55px',
+                  height: '55px',
+                  borderRadius: '50%',
+                  background: confirmation.variant === 'danger'
+                    ? '#fee2e2'
+                    : '#ccfbf1',
+                  color: confirmation.variant === 'danger'
+                    ? '#dc2626'
+                    : '#0d9488',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 15px',
+                  fontSize: '24px'
+                }}
+              >
+                <i className={`fa-solid ${confirmation.variant === 'danger'
+                  ? 'fa-trash'
+                  : 'fa-calendar-check'
+                  }`}></i>
+              </div>
+
+              <h3 style={{ color: '#1f2937', margin: '0 0 10px' }}>
+                {confirmation.title}
+              </h3>
+
+              <p style={{ color: '#64748b', fontSize: '14px', lineHeight: 1.6 }}>
+                {confirmation.message}
+              </p>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '10px'
+            }}>
+              <button
+                type="button"
+                disabled={confirming}
+                onClick={() => setConfirmation(null)}
+                style={{
+                  padding: '10px 18px',
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  border: 'none',
+                  borderRadius: '7px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={confirming}
+                onClick={handleConfirmAction}
+                style={{
+                  padding: '10px 18px',
+                  background: confirmation.variant === 'danger'
+                    ? '#dc2626'
+                    : '#0d9488',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '7px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  opacity: confirming ? 0.7 : 1
+                }}
+              >
+                {confirming ? 'Processing...' : confirmation.confirmText}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
       {/* Patient Details Modal */}
       {
         selectedPatient && (

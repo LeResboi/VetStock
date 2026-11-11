@@ -43,17 +43,30 @@ router.get(
                 throw userError;
             }
 
-            const userIds = users.map(user => user.user_id);
 
-            if (userIds.length === 0) {
-                return res.json({
-                    success: true,
-                    data: []
-                });
+
+            // Get existing audit logs created by users in the same clinic
+            const { data: userLogs, error: userLogsError } = await supabase
+                .from("audit_logs")
+                .select(`
+        log_id,
+        user_id,
+        action,
+        target_id,
+        target_table,
+        details,
+        ip_address,
+        user_agent,
+        created_at
+    `)
+                .in("user_id", users.map(user => user.user_id));
+
+            if (userLogsError) {
+                throw userLogsError;
             }
 
-            // Get audit logs created by users in the same clinic
-            const { data: logs, error: logsError } = await supabase
+            // Get registration request logs belonging to the same clinic
+            const { data: clinicLogs, error: clinicLogsError } = await supabase
                 .from("audit_logs")
                 .select(`
                     log_id,
@@ -65,13 +78,24 @@ router.get(
                     ip_address,
                     user_agent,
                     created_at
-                `)
-                .in("user_id", userIds)
-                .order("created_at", { ascending: false });
+    `)
+                .eq("clinic_id", clinicId);
 
-            if (logsError) {
-                throw logsError;
+            if (clinicLogsError) {
+                throw clinicLogsError;
             }
+
+            // Combine both results without duplicate log entries
+            const logsMap = new Map();
+
+            [...(userLogs || []), ...(clinicLogs || [])].forEach(log => {
+                logsMap.set(log.log_id, log);
+            });
+
+            const logs = Array.from(logsMap.values()).sort(
+                (a, b) => new Date(b.created_at) - new Date(a.created_at)
+            );
+
 
             // Match each log with its user information
             const userMap = new Map(
@@ -86,10 +110,29 @@ router.get(
                     user?.last_name
                 ].filter(Boolean).join(" ");
 
+                const registrationName = log.details?.description?.replace(
+                    "Registration request from ",
+                    ""
+                );
+
                 return {
                     ...log,
-                    username: fullName || user?.email || "Unknown User",
-                    role: user?.roles?.role_name || "Unknown Role"
+
+                    username:   
+                        fullName ||
+                        registrationName ||
+                        log.details?.email ||
+                        user?.email ||
+                        "Unknown User",
+
+                    role:
+                        user?.roles?.role_name ||
+                        log.details?.requested_role ||
+                        "Unknown Role",
+
+                    action_description:
+                        log.details?.description ||
+                        log.action.replaceAll("_", " ")
                 };
             });
 

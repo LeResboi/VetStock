@@ -33,7 +33,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: background 0.2s;
+  transition: background 0.2s ease;
   font-size: 13px;
 }
 
@@ -121,7 +121,7 @@
   display: flex;
   align-items: flex-start;
   gap: 16px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.01);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.01);
   transition: all 0.2s;
   cursor: pointer;
   position: relative;

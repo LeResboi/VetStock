@@ -1,13 +1,9 @@
 // FILE: Frontend/src/pages/UserManagement.jsx
 // PURPOSE: Administrator registration request approval and user management
 
-import React, {
-    useState,
-    useEffect,
-    useCallback
-} from "react";
-
+import React, { useState, useEffect, useCallback } from "react";
 import "./UserManagement.css";
+import Notification from "../components/Notification";
 
 const API_URL = "http://localhost:3001/api/auth";
 
@@ -43,8 +39,11 @@ export default function UserManagement() {
     const [refreshing, setRefreshing] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
-    const [error, setError] = useState("");
-    const [success, setSuccess] = useState("");
+    const [notification, setNotification] = useState(null);
+
+    const showNotification = (message, type = "success") => {
+        setNotification({ message, type });
+    };
 
     const [selectedRequest, setSelectedRequest] = useState(null);
     const [approvedRole, setApprovedRole] = useState("");
@@ -64,8 +63,6 @@ export default function UserManagement() {
             } else {
                 setRefreshing(true);
             }
-
-            setError("");
 
             const token = localStorage.getItem("token");
 
@@ -108,8 +105,10 @@ export default function UserManagement() {
 
         } catch (err) {
             console.error("User Management error:", err);
-            setError(err.message || "Unable to load user information.");
-
+            showNotification(
+                err.message || "Unable to load user information.",
+                "error"
+            );
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -242,8 +241,7 @@ export default function UserManagement() {
             request.requested_role?.role_name || ""
         );
 
-        setError("");
-        setSuccess("");
+        setNotification(null);
         setShowApproveModal(true);
     };
 
@@ -251,15 +249,22 @@ export default function UserManagement() {
     // APPROVE REGISTRATION REQUEST
     // ========================================================
 
+
+    // ========================================================
+    // APPROVE REGISTRATION REQUEST
+    // ========================================================
+
     const handleApprove = async () => {
         if (!selectedRequest || !approvedRole) {
-            setError("Please select the final assigned role.");
+            showNotification(
+                "Please select the final assigned role.",
+                "error"
+            );
             return;
         }
 
         try {
             setSubmitting(true);
-            setError("");
 
             const token = localStorage.getItem("token");
 
@@ -288,20 +293,22 @@ export default function UserManagement() {
             setShowApproveModal(false);
             setSelectedRequest(null);
 
-            setSuccess(
-                `${result.message || "Registration request approved successfully."}`
+            showNotification(
+                result.message || "Registration request approved successfully.",
+                "success"
             );
 
             await fetchData(false);
 
         } catch (err) {
             console.error("Approval error:", err);
-            setError(err.message);
+            showNotification(err.message, "error");
 
         } finally {
             setSubmitting(false);
         }
     };
+
 
     // ========================================================
     // OPEN REJECTION MODAL
@@ -311,8 +318,7 @@ export default function UserManagement() {
         setSelectedRequest(request);
         setRejectionReason("");
 
-        setError("");
-        setSuccess("");
+        setNotification(null);
         setShowRejectModal(true);
     };
 
@@ -325,8 +331,7 @@ export default function UserManagement() {
 
         try {
             setSubmitting(true);
-            setError("");
-
+        
             const token = localStorage.getItem("token");
 
             const response = await fetch(
@@ -355,15 +360,15 @@ export default function UserManagement() {
             setSelectedRequest(null);
             setRejectionReason("");
 
-            setSuccess(
-                result.message || "Registration request rejected successfully."
+            showNotification(
+                result.message || "Registration request rejected successfully.",
+                "success"
             );
-
             await fetchData(false);
 
         } catch (err) {
             console.error("Rejection error:", err);
-            setError(err.message);
+            showNotification(err.message, "error");
 
         } finally {
             setSubmitting(false);
@@ -419,22 +424,14 @@ export default function UserManagement() {
                 </button>
             </div>
 
-            {/* ERROR MESSAGE */}
+            {/* CUSTOM NOTIFICATION */}
 
-            {error && (
-                <div className="um-message error">
-                    <i className="fa-solid fa-circle-exclamation"></i>
-                    {error}
-                </div>
-            )}
-
-            {/* SUCCESS MESSAGE */}
-
-            {success && (
-                <div className="um-message success">
-                    <i className="fa-solid fa-circle-check"></i>
-                    {success}
-                </div>
+            {notification && (
+                <Notification
+                    message={notification.message}
+                    type={notification.type}
+                    onClose={() => setNotification(null)}
+                />
             )}
 
             {/* PENDING REGISTRATION REQUESTS */}

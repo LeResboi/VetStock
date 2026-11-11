@@ -232,6 +232,45 @@
   color: #0d9488;
 }
 
+
+/* =====================================================
+   APPOINTMENT DATE AND TIME INPUT VISIBILITY
+===================================================== */
+
+.patient-page .modal-content input[type="date"],
+.patient-page .modal-content input[type="time"] {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 12px;
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 14px;
+    color-scheme: light;
+    box-sizing: border-box;
+}
+
+/* Make calendar and clock picker icons visible */
+.patient-page .modal-content input[type="date"]::-webkit-calendar-picker-indicator,
+.patient-page .modal-content input[type="time"]::-webkit-calendar-picker-indicator {
+    display: block;
+    opacity: 1;
+    cursor: pointer;
+    filter: none;
+    width: 18px;
+    height: 18px;
+}
+
+/* Input focus */
+.patient-page .modal-content input[type="date"]:focus,
+.patient-page .modal-content input[type="time"]:focus {
+    outline: none;
+    border-color: #0d9488;
+    box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.15);
+}
+
+
 /* ============================================================
    PATIENT PAGE BUTTONS
 ============================================================ */

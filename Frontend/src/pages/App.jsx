@@ -9,6 +9,7 @@ import {
 import '../App.css';
 import './Auth.css';
 import illustrationImg from '../assets/Icon.png';
+import Notification from '../components/Notification';
 
 // ============================================================
 // 1. LOGIN / REGISTER COMPONENT
@@ -23,6 +24,22 @@ export default function AuthApp() {
     const [lastName, setLastName] = useState('');
     const [role, setRole] = useState('');
     const [error, setError] = useState('');
+    const [notification, setNotification] = useState(null);
+
+    useEffect(() => {
+        const savedNotification = sessionStorage.getItem('authNotification');
+
+        if (savedNotification) {
+            sessionStorage.removeItem('authNotification');
+
+            try {
+                setNotification(JSON.parse(savedNotification));
+            } catch (error) {
+                console.error('Error reading saved notification:', error);
+            }
+        }
+    }, []);
+
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -71,10 +88,12 @@ export default function AuthApp() {
             }
 
             if (isRegister) {
-                alert(
-                    data.message ||
-                    'Registration request submitted. Please wait for Administrator approval.'
-                );
+                setNotification({
+                    message:
+                        data.message ||
+                        'Registration request submitted. Please wait for Administrator approval.',
+                    type: 'success'
+                });
 
                 setIsRegister(false);
                 setFirstName('');
@@ -127,6 +146,14 @@ export default function AuthApp() {
                             ? 'Create a new VetStock account'
                             : 'Enter your details to sign in'}
                     </p>
+
+                    {notification && (
+                        <Notification
+                            message={notification.message}
+                            type={notification.type}
+                            onClose={() => setNotification(null)}
+                        />
+                    )}
 
                     {error && (
                         <div className="error-msg">
@@ -381,10 +408,13 @@ export function MainLayout() {
         } catch (error) {
             console.error('Logout audit error:', error);
 
-            alert(
-                'You have been logged out, but the logout activity could not be recorded.'
+            sessionStorage.setItem(
+                'authNotification',
+                JSON.stringify({
+                    message: 'You have been logged out, but the logout activity could not be recorded.',
+                    type: 'error'
+                })
             );
-
         } finally {
             localStorage.removeItem('token');
             localStorage.removeItem('user');

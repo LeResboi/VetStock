@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Notification from '../components/Notification';
 import './HealthRecords.css';
 
 export default function HealthRecords() {
@@ -9,6 +10,17 @@ export default function HealthRecords() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Custom notification
+  const [notification, setNotification] = useState(null);
+
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+  };
+
+  // Custom delete confirmation
+  const [confirmation, setConfirmation] = useState(null);
+  const [confirming, setConfirming] = useState(false);
 
   // Pagination states
   const [pageSize, setPageSize] = useState(5);
@@ -140,7 +152,7 @@ export default function HealthRecords() {
     e.preventDefault();
 
     if (!newFollowUpDate) {
-      alert('Please select a follow-up date.');
+      showNotification('Please select a follow-up date.', 'error');
       return;
     }
 
@@ -168,7 +180,7 @@ export default function HealthRecords() {
         throw new Error(data.message || 'Failed to add follow-up appointment.');
       }
 
-      alert('Follow-up appointment successfully scheduled!');
+      showNotification('Follow-up appointment successfully scheduled!', 'success');
 
       setNewFollowUpDate('');
       setNewFollowUpNotes('');
@@ -178,9 +190,10 @@ export default function HealthRecords() {
 
     } catch (err) {
       console.error('Error adding follow-up:', err);
-      alert(err.message || 'Unable to schedule follow-up appointment.');
-    } finally {
-      setFollowUpSubmitting(false);
+      showNotification(
+        err.message || 'Unable to schedule follow-up appointment.',
+        'error'
+      );
     }
   };
 
@@ -207,10 +220,14 @@ export default function HealthRecords() {
       }
 
       await fetchFollowUps(viewingRecord.record_id);
+      showNotification('Follow-up appointment status successfully updated!', 'success');
 
     } catch (err) {
       console.error('Error updating follow-up status:', err);
-      alert(err.message || 'Unable to update appointment status.');
+      showNotification(
+        err.message || 'Unable to update appointment status.',
+        'error'
+      );
     }
   };
 
@@ -238,7 +255,7 @@ export default function HealthRecords() {
     e.preventDefault();
 
     if (!patientId) {
-      alert('Please select a patient.');
+      showNotification('Please select a patient.', 'error');
       return;
     }
 
@@ -271,20 +288,24 @@ export default function HealthRecords() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        alert(
+        showNotification(
           isEditing
             ? 'Health record successfully updated!'
-            : 'Health record successfully added!'
+            : 'Health record successfully added!',
+          'success'
         );
 
         closeRecordModal();
         await fetchHealthRecords();
       } else {
-        alert(data.message || 'Failed to save health record.');
+        showNotification(
+          data.message || 'Failed to save health record.',
+          'error'
+        );
       }
     } catch (err) {
       console.error('Error saving health record:', err);
-      alert('An error occurred on the server.');
+      showNotification('An error occurred on the server.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -326,36 +347,46 @@ export default function HealthRecords() {
   };
 
   const handleDeleteRecord = async (recordId) => {
-    const confirmed = window.confirm(
-      'Are you sure you want to delete this health record? This action cannot be undone.'
-    );
+    setConfirmation({
+      message: 'Are you sure you want to delete this health record? This action cannot be undone.',
+      onConfirm: async () => {
+        setConfirming(true);
 
-    if (!confirmed) return;
+        try {
+          const response = await fetch(
+            `http://localhost:3001/api/health-records/${recordId}`,
+            {
+              method: 'DELETE',
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            }
+          );
 
-    try {
-      const response = await fetch(
-        `http://localhost:3001/api/health-records/${recordId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`
+          const data = await response.json();
+
+          if (response.ok && data.success) {
+            showNotification('Health record successfully deleted!', 'success');
+            setViewingRecord(null);
+            await fetchHealthRecords();
+          } else {
+            showNotification(
+              data.message || 'Failed to delete health record.',
+              'error'
+            );
           }
+        } catch (err) {
+          console.error('Error deleting health record:', err);
+          showNotification(
+            'An error occurred while deleting the health record.',
+            'error'
+          );
+        } finally {
+          setConfirming(false);
+          setConfirmation(null);
         }
-      );
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        alert('Health record successfully deleted!');
-        setViewingRecord(null);
-        await fetchHealthRecords();
-      } else {
-        alert(data.message || 'Failed to delete health record.');
       }
-    } catch (err) {
-      console.error('Error deleting health record:', err);
-      alert('An error occurred while deleting the health record.');
-    }
+    });
   };
 
   const getFollowUpStatus = (date) => {
@@ -425,6 +456,14 @@ export default function HealthRecords() {
 
   return (
     <div className="health-records-page">
+      {/* CUSTOM NOTIFICATION */}
+      {notification && (
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification(null)}
+        />
+      )}
       {/* Page Header */}
       <div className="health-records-header">
         <div>
@@ -435,6 +474,8 @@ export default function HealthRecords() {
           <i className="fa-solid fa-plus"></i> Add Record
         </button>
       </div>
+
+
 
       {/* Quick Stats Cards */}
       <div className="health-records-stats">
@@ -923,6 +964,7 @@ export default function HealthRecords() {
             zIndex: 1100
           }}
         >
+
           <div
             className="modal-content"
             onClick={(e) => e.stopPropagation()}
@@ -1097,6 +1139,7 @@ export default function HealthRecords() {
                 </p>
               </div>
             </div>
+
             {/* FOLLOW-UP APPOINTMENT HISTORY */}
             <div
               style={{
@@ -1265,6 +1308,8 @@ export default function HealthRecords() {
                   style={{
                     marginTop: '16px',
                     padding: '14px',
+                    backgroundColor: '#ffffff',
+                    color: '#000000',
                     background: '#fff',
                     border: '1px solid #cbd5e1',
                     borderRadius: '8px'
@@ -1292,6 +1337,8 @@ export default function HealthRecords() {
                       width: '100%',
                       padding: '9px',
                       marginBottom: '12px',
+                      backgroundColor: '#ffffff',
+                      color: '#000000',
                       border: '1px solid #cbd5e1',
                       borderRadius: '5px'
                     }}
@@ -1315,6 +1362,8 @@ export default function HealthRecords() {
                       width: '100%',
                       padding: '9px',
                       marginBottom: '12px',
+                      backgroundColor: '#ffffff',
+                      color: '#000000',
                       border: '1px solid #cbd5e1',
                       borderRadius: '5px',
                       resize: 'vertical'
@@ -1329,6 +1378,15 @@ export default function HealthRecords() {
                     <button
                       type="button"
                       onClick={() => setShowFollowUpForm(false)}
+                      style={{
+                        backgroundColor: '#e2e8f0',
+                        color: '#334155',
+                        border: 'none',
+                        padding: '8px 14px',
+                        borderRadius: '5px',
+                        cursor: 'pointer',
+                        fontWeight: '500'
+                      }}
                     >
                       Cancel
                     </button>
@@ -1395,9 +1453,92 @@ export default function HealthRecords() {
                 Close
               </button>
             </div>
+
           </div>
         </div>
       )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {confirmation && (
+        <div
+          className="modal-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2000
+          }}
+        >
+          <div
+            className="modal-content"
+            style={{
+              background: '#fff',
+              padding: '24px',
+              borderRadius: '10px',
+              width: '400px',
+              maxWidth: '90%'
+            }}
+          >
+            <h3 style={{ marginTop: 0, color: '#0f172a' }}>
+              Confirm Deletion
+            </h3>
+
+            <p style={{ color: '#475569', lineHeight: '1.5' }}>
+              {confirmation.message}
+            </p>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '10px',
+                marginTop: '20px'
+              }}
+            >
+              {/* CANCEL BUTTON */}
+              <button
+                type="button"
+                onClick={() => setConfirmation(null)}
+                disabled={confirming}
+                style={{
+                  padding: '9px 16px',
+                  background: '#e2e8f0',
+                  color: '#334155',
+                  border: 'none',
+                  borderRadius: '5px',
+                  cursor: confirming ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+
+              {/* DELETE BUTTON */}
+              <button
+                type="button"
+                onClick={confirmation.onConfirm}
+                disabled={confirming}
+                style={{
+                  padding: '9px 16px',
+                  background: '#dc2626',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '5px',
+                  cursor: confirming ? 'not-allowed' : 'pointer',
+                  opacity: confirming ? 0.7 : 1
+                }}
+              >
+                {confirming ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+
+

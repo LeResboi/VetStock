@@ -170,26 +170,40 @@ export default function AuditLogs() {
     // ============================================================
 
     const formatAction = action => {
-        if (!action) return "UNKNOWN";
+        if (!action) return "Unknown";
 
         const actionLabels = {
-            USER_APPROVED: "ACCEPTED"
+            USER_APPROVED: "Accepted",
+
+            HEALTH_RECORD_CREATED: "Record Created",
+            HEALTH_RECORD_UPDATED: "Record Updated",
+            HEALTH_RECORD_DELETED: "Record Deleted",
+            FOLLOWUP_SCHEDULED: "Follow-up Scheduled",
+            FOLLOWUP_UPDATED: "Follow-up Updated",
+
+            PATIENT_CREATED: "Patient Created",
+            PATIENT_UPDATED: "Patient Updated",
+            PATIENT_DEACTIVATED: "Patient Deactivated"
         };
 
-        return actionLabels[action.toUpperCase()] || action;
+        return actionLabels[action.toUpperCase()] ||
+            action.replace(/_/g, " ");
     };
+
+
 
     // ============================================================
     // FORMAT ACTIVITY DETAILS
     // ============================================================
 
-    const formatDetails = details => {
+    const formatDetails = (details, actionDescription) => {
+        if (actionDescription) {
+            return actionDescription;
+        }
         if (!details) return "No additional details";
-
         if (typeof details === "string") {
             return details;
         }
-
         return (
             details.description ||
             JSON.stringify(details)
@@ -284,6 +298,14 @@ export default function AuditLogs() {
                             <option value="DELETE">Delete</option>
                             <option value="STOCK_IN">Stock In</option>
                             <option value="STOCK_OUT">Stock Out</option>
+                            <option value="HEALTH_RECORD_CREATED">Health Record Created</option>
+                            <option value="HEALTH_RECORD_UPDATED">Health Record Updated</option>
+                            <option value="HEALTH_RECORD_DELETED">Health Record Deleted</option>
+                            <option value="FOLLOWUP_SCHEDULED">Follow-up Scheduled</option>
+                            <option value="FOLLOWUP_UPDATED">Follow-up Updated</option>
+                            <option value="PATIENT_CREATED">Patient Created</option>
+                            <option value="PATIENT_UPDATED">Patient Updated</option>
+                            <option value="PATIENT_DEACTIVATED">Patient Deactivated</option>
                         </select>
 
                     </div>
@@ -348,7 +370,7 @@ export default function AuditLogs() {
                                             </td>
 
                                             <td className="audit-details">
-                                                {formatDetails(log.details)}
+                                                {formatDetails(log.details, log.action_description)}
                                             </td>
                                         </tr>
                                     ))

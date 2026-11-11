@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './Transactions.css';
+import Notification from '../components/Notification';
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState([]);
@@ -14,6 +15,13 @@ export default function Transactions() {
   const [viewingTransaction, setViewingTransaction] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
+
+  // Custom notification
+  const [notification, setNotification] = useState(null);
+
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+  };
 
   const [newItemId, setNewItemId] = useState('');
   const [newType, setNewType] = useState('IN');
@@ -141,13 +149,13 @@ export default function Transactions() {
     e.preventDefault();
 
     if (!newItemId || !newType || !newQuantity) {
-      alert('Please fill in all required fields.');
+      showNotification('Please fill in all required fields.', 'error');
       return;
     }
 
     // Validate the selected batch for Stock Out.
     if (newType === 'OUT' && !newBatchId) {
-      alert('Please select a batch for Stock Out.');
+      showNotification('Please select a batch for Stock Out.', 'error');
       return;
     }
 
@@ -157,7 +165,23 @@ export default function Transactions() {
       receiptMethod === 'EXISTING_BATCH' &&
       !newBatchId
     ) {
-      alert('Please select an existing batch.');
+      showNotification('Please select an existing batch.', 'error');
+      return;
+    }
+
+    // Validate the new batch number.
+    if (
+      newType === 'IN' &&
+      receiptMethod === 'NEW_BATCH' &&
+      !newBatchNumber.trim()
+    ) {
+      showNotification('Please enter a batch number.', 'error');
+      return;
+    }
+
+    // Preserve the existing batch requirement for Adjustment.
+    if (newType === 'ADJUSTMENT' && !newBatchId) {
+      showNotification('Please select a batch for Adjustment.', 'error');
       return;
     }
 
@@ -224,7 +248,10 @@ export default function Transactions() {
         );
       }
 
-      alert('Transaction successfully recorded!');
+      showNotification(
+        'Transaction successfully recorded!',
+        'success'
+      );
 
       // Close modal
       setShowModal(false);
@@ -245,8 +272,10 @@ export default function Transactions() {
       fetchInventoryItems();
 
     } catch (err) {
-      console.error('Error creating transaction:', err);
-      alert(err.message || 'An error occurred on the server.');
+      console.error('Error creating transaction:', err); showNotification(
+        err.message || 'An error occurred on the server.',
+        'error'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -287,6 +316,14 @@ export default function Transactions() {
 
   return (
     <div className="transactions-page">
+      {/* CUSTOM NOTIFICATION */}
+      {notification && (
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification(null)}
+        />
+      )}
       {/* Page Header */}
       <div className="transactions-header">
         <div>

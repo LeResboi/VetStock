@@ -5,8 +5,49 @@ import express from "express";
 import { supabase } from "../VetStockDatabase/Supabase.js";
 import { authenticateToken } from "../Middleware/Authentication.js";
 import { requireRole } from "../Middleware/Roles.js";
+import { createAuditLog } from "../Utils/AuditLogger.js";
 
 const router = express.Router();
+
+
+// ======================================================
+// FOLLOW-UP DATE VALIDATION (ASIA/MANILA)
+// ======================================================
+function getTodayManilaDate() {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+    }).formatToParts(new Date());
+
+    const year = parts.find(part => part.type === "year").value;
+    const month = parts.find(part => part.type === "month").value;
+    const day = parts.find(part => part.type === "day").value;
+
+    return `${year}-${month}-${day}`;
+}
+
+function isValidFollowUpDate(date) {
+    if (
+        typeof date !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(date)
+    ) {
+        return false;
+    }
+
+    const parsedDate = new Date(`${date}T00:00:00.000Z`);
+
+    if (
+        Number.isNaN(parsedDate.getTime()) ||
+        parsedDate.toISOString().slice(0, 10) !== date
+    ) {
+        return false;
+    }
+
+    return date >= getTodayManilaDate();
+}
+
 
 // ======================================================
 // VERIFY HEALTH RECORD BELONGS TO USER'S CLINIC
@@ -236,6 +277,17 @@ router.post(
                 });
             }
 
+            // Validate initial follow-up date
+            if (
+                follow_up_date &&
+                !isValidFollowUpDate(follow_up_date)
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Follow-up date must be today or a future date."
+                });
+            }
+
             // Confirm patient belongs to the clinic
             const { data: patient, error: patientError } = await supabase
                 .from("patients")
@@ -297,6 +349,16 @@ router.post(
                     throw followUpError;
                 }
             }
+
+            await createAuditLog(req, {
+                action: "HEALTH_RECORD_CREATED",
+                targetTable: "health_records",
+                targetId: data.record_id,
+                details: {
+                    description: "Created a new health record.",
+                    patient_id: data.patient_id
+                }
+            });
 
             return res.status(201).json({
                 success: true,
@@ -374,6 +436,16 @@ router.put(
 
 
             if (req.body.follow_up_date !== undefined) {
+                if (
+                    req.body.follow_up_date &&
+                    !isValidFollowUpDate(req.body.follow_up_date)
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Follow-up date must be today or a future date."
+                    });
+                }
+
                 updates.follow_up_date = req.body.follow_up_date || null;
             }
 
@@ -469,6 +541,18 @@ router.put(
                 }
             }
 
+            await createAuditLog(req, {
+                action: "HEALTH_RECORD_UPDATED",
+                targetTable: "health_records",
+                targetId: data.record_id,
+                details: {
+                    description: "Updated a health record.",
+                    updated_fields: Object.keys(updates).filter(
+                        field => field !== "updated_at"
+                    )
+                }
+            });
+
             return res.json({
                 success: true,
                 message: "Health record updated successfully.",
@@ -551,6 +635,14 @@ router.post(
                 });
             }
 
+            // Validate follow-up appointment date
+            if (!isValidFollowUpDate(follow_up_date)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Follow-up date must be today or a future date."
+                });
+            }
+
             const result = await getClinicHealthRecord(
                 req.params.id,
                 req.user.clinic_id
@@ -596,6 +688,17 @@ router.post(
                 throw error;
             }
 
+            await createAuditLog(req, {
+                action: "FOLLOWUP_SCHEDULED",
+                targetTable: "health_record_followups",
+                targetId: data.followup_id,
+                details: {
+                    description: "Scheduled a health record follow-up appointment.",
+                    record_id: data.record_id,
+                    follow_up_date: data.follow_up_date
+                }
+            });
+
             return res.status(201).json({
                 success: true,
                 message: "Follow-up appointment scheduled successfully.",
@@ -640,10 +743,13 @@ router.put(
             const updates = {};
 
             if (req.body.follow_up_date !== undefined) {
-                if (!req.body.follow_up_date) {
+                if (
+                    !req.body.follow_up_date ||
+                    !isValidFollowUpDate(req.body.follow_up_date)
+                ) {
                     return res.status(400).json({
                         success: false,
-                        message: "Follow-up date cannot be empty."
+                        message: "Follow-up date must be today or a future date."
                     });
                 }
 
@@ -701,6 +807,19 @@ router.put(
                     message: "Follow-up appointment not found."
                 });
             }
+
+            await createAuditLog(req, {
+                action: "FOLLOWUP_UPDATED",
+                targetTable: "health_record_followups",
+                targetId: data.followup_id,
+                details: {
+                    description: "Updated a health record follow-up appointment.",
+                    record_id: data.record_id,
+                    updated_fields: Object.keys(updates).filter(
+                        field => field !== "updated_at"
+                    )
+                }
+            });
 
             return res.json({
                 success: true,
@@ -778,6 +897,16 @@ router.delete(
             if (deleteError) {
                 throw deleteError;
             }
+
+            await createAuditLog(req, {
+                action: "HEALTH_RECORD_DELETED",
+                targetTable: "health_records",
+                targetId: record.record_id,
+                details: {
+                    description: "Deleted a health record.",
+                    patient_id: record.patient_id
+                }
+            });
 
             return res.json({
                 success: true,
