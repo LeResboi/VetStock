@@ -33,13 +33,91 @@ export default function Transactions() {
 
   // Stock In receiving options
   const [receiptMethod, setReceiptMethod] = useState('NEW_BATCH');
-  const [newBatchNumber, setNewBatchNumber] = useState('');
+
+
+
   const [newExpirationDate, setNewExpirationDate] = useState('');
 
   const [pageSize, setPageSize] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
 
   const token = localStorage.getItem('token');
+
+  const [userRole, setUserRole] = useState('');
+  const [permissions, setPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+
+
+  // ======================================================
+  // FETCH CURRENT USER PERMISSIONS
+  // ======================================================
+
+  const fetchUserAccess = useCallback(async () => {
+    try {
+      const response = await fetch(
+        'http://localhost:3001/api/auth/me',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      const data = await response.json();
+      console.log('Current User Role:', data.data?.role);
+      console.log('Current User Permissions:', data.data?.permissions);
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || 'Unable to retrieve permissions.'
+        );
+      }
+
+      setUserRole(data.data.role || '');
+
+      setPermissions(
+        Array.isArray(data.data.permissions)
+          ? data.data.permissions
+          : []
+      );
+
+    } catch (error) {
+      console.error('Fetch user permissions error:', error);
+
+      setUserRole('');
+      setPermissions([]);
+
+    } finally {
+      setPermissionsLoading(false);
+    }
+  }, [token]);
+
+  // ======================================================
+  // CHECK TRANSACTION PERMISSIONS
+  // ======================================================
+
+  const hasPermission = (permission) =>
+    permissions.includes(permission);
+
+  // During migration, preserve existing access for roles
+  // whose permission assignments have not been configured yet.
+
+  const canStockIn =
+    hasPermission('transactions.stock_in') ||
+    ['Administrator', 'Inventory Staff'].includes(userRole);
+
+  const canStockOut =
+    hasPermission('transactions.stock_out') ||
+    ['Administrator', 'Inventory Staff', 'Veterinarian'].includes(userRole);
+
+  const canCreateTransaction =
+    canStockIn || canStockOut;
+
+  // Clinic Manager has transactions.details.view.
+  // Veterinarian does not have individual detail access.
+  const canViewTransactionDetails =
+    hasPermission('transactions.details.view') ||
+    ['Administrator', 'Inventory Staff'].includes(userRole);
 
   const fetchBatches = useCallback(async () => {
     try {
@@ -107,10 +185,16 @@ export default function Transactions() {
   }, [token]);
 
   useEffect(() => {
+    fetchUserAccess();
     fetchBatches();
     fetchTransactions();
     fetchInventoryItems();
-  }, [fetchBatches, fetchTransactions, fetchInventoryItems]);
+  }, [
+    fetchUserAccess,
+    fetchBatches,
+    fetchTransactions,
+    fetchInventoryItems
+  ]);
 
   // Fetch one transaction for viewing
   const handleViewTransaction = async (transactionId) => {
@@ -148,6 +232,22 @@ export default function Transactions() {
   const handleCreateTransaction = async (e) => {
     e.preventDefault();
 
+    // ======================================================
+    // VERIFY TRANSACTION PERMISSION BEFORE SUBMISSION
+    // ======================================================
+
+    if (
+      (newType === 'IN' && !canStockIn) ||
+      (newType === 'OUT' && !canStockOut) ||
+      newType === 'ADJUSTMENT'
+    ) {
+      showNotification(
+        'You do not have permission to perform this transaction.',
+        'error'
+      );
+      return;
+    }
+
     if (!newItemId || !newType || !newQuantity) {
       showNotification('Please fill in all required fields.', 'error');
       return;
@@ -169,38 +269,6 @@ export default function Transactions() {
       return;
     }
 
-    // Validate the new batch number.
-    if (
-      newType === 'IN' &&
-      receiptMethod === 'NEW_BATCH' &&
-      !newBatchNumber.trim()
-    ) {
-      showNotification('Please enter a batch number.', 'error');
-      return;
-    }
-
-    // Preserve the existing batch requirement for Adjustment.
-    if (newType === 'ADJUSTMENT' && !newBatchId) {
-      showNotification('Please select a batch for Adjustment.', 'error');
-      return;
-    }
-
-    // Validate the new batch number.
-    if (
-      newType === 'IN' &&
-      receiptMethod === 'NEW_BATCH' &&
-      !newBatchNumber.trim()
-    ) {
-      alert('Please enter a batch number.');
-      return;
-    }
-
-    // Preserve the existing batch requirement for Adjustment.
-    if (newType === 'ADJUSTMENT' && !newBatchId) {
-      alert('Please select a batch for Adjustment.');
-      return;
-    }
-
     setSubmitting(true);
 
     try {
@@ -216,14 +284,13 @@ export default function Transactions() {
         requestBody.receipt_method = receiptMethod;
 
         if (receiptMethod === 'NEW_BATCH') {
-          requestBody.batch_number = newBatchNumber.trim();
           requestBody.expiration_date = newExpirationDate || null;
         } else {
           requestBody.batch_id = newBatchId;
         }
       }
 
-      // STOCK OUT AND ADJUSTMENT
+      // STOCK OUT
       else {
         requestBody.batch_id = newBatchId;
       }
@@ -259,11 +326,12 @@ export default function Transactions() {
       // Reset form
       setNewItemId('');
       setNewBatchId('');
-      setNewType('IN');
+      setNewType(
+        userRole === 'Veterinarian' ? 'OUT' : 'IN'
+      );
       setNewQuantity('');
       setNewReason('');
       setReceiptMethod('NEW_BATCH');
-      setNewBatchNumber('');
       setNewExpirationDate('');
 
       // Refresh updated database information
@@ -330,9 +398,21 @@ export default function Transactions() {
           <h2>Stock Transactions</h2>
           <p>Monitor all stock movements, entries, and exits across the system in real-time.</p>
         </div>
-        <button className="add-btn" onClick={() => setShowModal(true)}>
-          <i className="fa-solid fa-plus"></i> New Transaction
-        </button>
+
+        {!permissionsLoading && canCreateTransaction && (
+          <button
+            className="add-btn"
+            onClick={() => {
+              setNewType(
+                userRole === 'Veterinarian' ? 'OUT' : 'IN'
+              );
+              setShowModal(true);
+            }}
+          >
+            <i className="fa-solid fa-plus"></i> New Transaction
+          </button>
+        )}
+
       </div>
 
       {/* Quick Stats Cards */}
@@ -423,9 +503,21 @@ export default function Transactions() {
                   return (
                     <tr
                       key={tx.transaction_id}
-                      className="clickable-transaction-row"
-                      onClick={() => handleViewTransaction(tx.transaction_id)}
-                      title="Click to view transaction details"
+                      className={
+                        canViewTransactionDetails
+                          ? "clickable-transaction-row"
+                          : ""
+                      }
+                      onClick={
+                        canViewTransactionDetails
+                          ? () => handleViewTransaction(tx.transaction_id)
+                          : undefined
+                      }
+                      title={
+                        canViewTransactionDetails
+                          ? "Click to view transaction details"
+                          : undefined
+                      }
                     >
                       <td><span className="item-id">#{tx.transaction_id.substring(0, 8)}</span></td>
                       <td>{formattedDate}</td>
@@ -500,7 +592,7 @@ export default function Transactions() {
         </div>
       </div>
 
-      {showModal && (
+      {showModal && canCreateTransaction && (
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
@@ -508,9 +600,11 @@ export default function Transactions() {
               <button className="close-btn" onClick={() => setShowModal(false)}>&times;</button>
             </div>
             <form onSubmit={handleCreateTransaction}>
+
               {/* SELECT MEDICINE / ITEM */}
               <div className="form-group">
                 <label>Select Medicine / Item</label>
+
                 <select
                   value={newItemId}
                   onChange={(e) => {
@@ -522,7 +616,10 @@ export default function Transactions() {
                   <option value="">-- Choose an Item --</option>
 
                   {inventoryItems.map((item) => (
-                    <option key={item.item_id} value={item.item_id}>
+                    <option
+                      key={item.item_id}
+                      value={item.item_id}
+                    >
                       {item.item_name} (Stock: {item.quantity})
                     </option>
                   ))}
@@ -530,24 +627,28 @@ export default function Transactions() {
               </div>
 
 
-              {/* TRANSACTION TYPE */}
               <div className="form-group">
                 <label>Transaction Type</label>
+
                 <select
                   value={newType}
                   onChange={(e) => {
                     setNewType(e.target.value);
                     setNewBatchId('');
-                    setNewBatchNumber('');
                     setNewExpirationDate('');
                   }}
                   required
                 >
-                  <option value="IN">Stock In</option>
-                  <option value="OUT">Stock Out</option>
-                  <option value="ADJUSTMENT">Adjustment</option>
+                  {canStockIn && (
+                    <option value="IN">Stock In</option>
+                  )}
+
+                  {canStockOut && (
+                    <option value="OUT">Stock Out</option>
+                  )}
                 </select>
               </div>
+
 
               {/* STOCK IN RECEIVING METHOD */}
               {newType === 'IN' && (
@@ -558,7 +659,6 @@ export default function Transactions() {
                     onChange={(e) => {
                       setReceiptMethod(e.target.value);
                       setNewBatchId('');
-                      setNewBatchNumber('');
                       setNewExpirationDate('');
                     }}
                     required
@@ -574,15 +674,11 @@ export default function Transactions() {
                 receiptMethod === 'NEW_BATCH' && (
                   <>
                     <div className="form-group">
-                      <label>Batch Number *</label>
+                      <label>Batch Number</label>
                       <input
                         type="text"
-                        placeholder="Enter supplier batch number..."
-                        value={newBatchNumber}
-                        onChange={(e) =>
-                          setNewBatchNumber(e.target.value)
-                        }
-                        required
+                        value="Auto-generated"
+                        disabled
                       />
                     </div>
 
@@ -601,7 +697,6 @@ export default function Transactions() {
 
               {/* SELECT EXISTING BATCH */}
               {(newType === 'OUT' ||
-                newType === 'ADJUSTMENT' ||
                 (newType === 'IN' &&
                   receiptMethod === 'EXISTING_BATCH')) && (
                   <div className="form-group">
@@ -680,159 +775,198 @@ export default function Transactions() {
         </div>
       )}
       {/* VIEW TRANSACTION DETAILS MODAL */}
-      {(detailLoading || detailError || viewingTransaction) && (
-        <div
-          className="modal-overlay"
-          onClick={() => {
-            setViewingTransaction(null);
-            setDetailError('');
-          }}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 1100
-          }}
-        >
+      {canViewTransactionDetails &&
+        (detailLoading || detailError || viewingTransaction) && (
           <div
-            className="modal-content"
-            onClick={(e) => e.stopPropagation()}
+            className="modal-overlay"
+            onClick={() => {
+              setViewingTransaction(null);
+              setDetailError('');
+            }}
             style={{
-              background: '#fff',
-              padding: '24px',
-              borderRadius: '12px',
-              width: '600px',
-              maxWidth: '90%',
-              maxHeight: '85vh',
-              overflowY: 'auto'
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 1100
             }}
           >
-            {/* Modal Header */}
             <div
+              className="modal-content"
+              onClick={(e) => e.stopPropagation()}
               style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                position: 'relative',
-                marginBottom: '20px'
+                background: '#fff',
+                padding: '24px',
+                borderRadius: '12px',
+                width: '600px',
+                maxWidth: '90%',
+                maxHeight: '85vh',
+                overflowY: 'auto'
               }}
             >
-              <div style={{ textAlign: 'center' }}>
-                <h3 style={{ margin: 0, color: '#0f172a' }}>
-                  Transaction Details
-                </h3>
-                <p style={{ margin: '6px 0 0', color: '#64748b' }}>
-                  Complete stock transaction information
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setViewingTransaction(null);
-                  setDetailError('');
-                }}
+              {/* Modal Header */}
+              <div
                 style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: 0,
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '22px',
-                  cursor: 'pointer'
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  position: 'relative',
+                  marginBottom: '20px'
                 }}
               >
-                &times;
-              </button>
-            </div>
-
-            {detailLoading ? (
-              <div style={{ textAlign: 'center', padding: '35px' }}>
-                <i className="fa-solid fa-spinner fa-spin fa-2x"></i>
-                <p>Loading transaction details...</p>
-              </div>
-            ) : detailError ? (
-              <p style={{ color: '#dc2626', textAlign: 'center' }}>
-                {detailError}
-              </p>
-            ) : viewingTransaction && (
-              <>
-                {/* Transaction Summary */}
-                <div
-                  style={{
-                    background: '#f0fdfa',
-                    padding: '16px',
-                    borderRadius: '8px',
-                    marginBottom: '20px'
-                  }}
-                >
-                  <h2 style={{ margin: '0 0 6px', color: '#0f766e' }}>
-                    {viewingTransaction.inventory_items?.item_name || 'Unknown Item'}
-                  </h2>
-
-                  <p style={{ margin: 0, color: '#475569' }}>
-                    Transaction ID: #
-                    {viewingTransaction.transaction_id?.substring(0, 8)}
+                <div style={{ textAlign: 'center' }}>
+                  <h3 style={{ margin: 0, color: '#0f172a' }}>
+                    Transaction Details
+                  </h3>
+                  <p style={{ margin: '6px 0 0', color: '#64748b' }}>
+                    Complete stock transaction information
                   </p>
                 </div>
 
-                {/* Transaction Information */}
-                <div
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewingTransaction(null);
+                    setDetailError('');
+                  }}
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                    gap: '14px'
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '22px',
+                    cursor: 'pointer'
                   }}
                 >
-                  {[
-                    {
-                      label: 'Transaction ID',
-                      value: viewingTransaction.transaction_id
-                    },
-                    {
-                      label: 'Medicine / Item',
-                      value: viewingTransaction.inventory_items?.item_name
-                    },
-                    {
-                      label: 'Transaction Type',
-                      value: viewingTransaction.transaction_type
-                    },
-                    {
-                      label: 'Quantity',
-                      value: viewingTransaction.quantity
-                    },
-                    {
-                      label: 'Batch ID',
-                      value: viewingTransaction.batch_id
-                    },
-                    {
-                      label: 'Recorded By',
-                      value: viewingTransaction.users
-                        ? `${viewingTransaction.users.first_name || ''} ${viewingTransaction.users.last_name || ''}`.trim()
-                        : 'Unknown User'
-                    },
-                    {
-                      label: 'Transaction Date',
-                      value: viewingTransaction.created_at
-                        ? new Date(viewingTransaction.created_at).toLocaleString('en-US')
-                        : 'N/A'
-                    }
-                  ].map((field, index) => (
+                  &times;
+                </button>
+              </div>
+
+              {detailLoading ? (
+                <div style={{ textAlign: 'center', padding: '35px' }}>
+                  <i className="fa-solid fa-spinner fa-spin fa-2x"></i>
+                  <p>Loading transaction details...</p>
+                </div>
+              ) : detailError ? (
+                <p style={{ color: '#dc2626', textAlign: 'center' }}>
+                  {detailError}
+                </p>
+              ) : viewingTransaction && (
+                <>
+                  {/* Transaction Summary */}
+                  <div
+                    style={{
+                      background: '#f0fdfa',
+                      padding: '16px',
+                      borderRadius: '8px',
+                      marginBottom: '20px'
+                    }}
+                  >
+                    <h2 style={{ margin: '0 0 6px', color: '#0f766e' }}>
+                      {viewingTransaction.inventory_items?.item_name || 'Unknown Item'}
+                    </h2>
+
+                    <p style={{ margin: 0, color: '#475569' }}>
+                      Transaction ID: #
+                      {viewingTransaction.transaction_id?.substring(0, 8)}
+                    </p>
+                  </div>
+
+                  {/* Transaction Information */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                      gap: '14px'
+                    }}
+                  >
+                    {[
+                      {
+                        label: 'Transaction ID',
+                        value: viewingTransaction.transaction_id
+                      },
+                      {
+                        label: 'Medicine / Item',
+                        value: viewingTransaction.inventory_items?.item_name
+                      },
+                      {
+                        label: 'Transaction Type',
+                        value: viewingTransaction.transaction_type
+                      },
+                      {
+                        label: 'Quantity',
+                        value: viewingTransaction.quantity
+                      },
+                      {
+                        label: 'Batch ID',
+                        value: viewingTransaction.batch_id
+                      },
+                      {
+                        label: 'Recorded By',
+                        value: viewingTransaction.users
+                          ? `${viewingTransaction.users.first_name || ''} ${viewingTransaction.users.last_name || ''}`.trim()
+                          : 'Unknown User'
+                      },
+                      {
+                        label: 'Transaction Date',
+                        value: viewingTransaction.created_at
+                          ? new Date(viewingTransaction.created_at).toLocaleString('en-US')
+                          : 'N/A'
+                      }
+                    ].map((field, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          padding: '12px',
+                          background: '#f8fafc',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px',
+                          minWidth: 0,
+                          gridColumn: field.label === 'Transaction Date' ? '1 / -1' : 'auto'
+                        }}
+                      >
+                        <p
+                          style={{
+                            margin: '0 0 6px',
+                            fontSize: '12px',
+                            color: '#64748b',
+                            fontWeight: '600'
+                          }}
+                        >
+                          {field.label}
+                        </p>
+
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: '14px',
+                            color: '#0f172a',
+                            overflowWrap: 'anywhere'
+                          }}
+                        >
+                          {field.value === null ||
+                            field.value === undefined ||
+                            field.value === ''
+                            ? 'N/A'
+                            : field.value}
+                        </p>
+                      </div>
+                    ))}
+
+                    {/* Reason / Notes */}
                     <div
-                      key={index}
                       style={{
+                        gridColumn: '1 / -1',
                         padding: '12px',
                         background: '#f8fafc',
                         border: '1px solid #e2e8f0',
-                        borderRadius: '8px',
-                        minWidth: 0,
-                        gridColumn: field.label === 'Transaction Date' ? '1 / -1' : 'auto'
+                        borderRadius: '8px'
                       }}
                     >
                       <p
@@ -843,7 +977,7 @@ export default function Transactions() {
                           fontWeight: '600'
                         }}
                       >
-                        {field.label}
+                        Reason / Notes
                       </p>
 
                       <p
@@ -854,73 +988,35 @@ export default function Transactions() {
                           overflowWrap: 'anywhere'
                         }}
                       >
-                        {field.value === null ||
-                          field.value === undefined ||
-                          field.value === ''
-                          ? 'N/A'
-                          : field.value}
+                        {viewingTransaction.reason || 'No additional notes.'}
                       </p>
                     </div>
-                  ))}
-
-                  {/* Reason / Notes */}
-                  <div
-                    style={{
-                      gridColumn: '1 / -1',
-                      padding: '12px',
-                      background: '#f8fafc',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px'
-                    }}
-                  >
-                    <p
-                      style={{
-                        margin: '0 0 6px',
-                        fontSize: '12px',
-                        color: '#64748b',
-                        fontWeight: '600'
-                      }}
-                    >
-                      Reason / Notes
-                    </p>
-
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: '14px',
-                        color: '#0f172a',
-                        overflowWrap: 'anywhere'
-                      }}
-                    >
-                      {viewingTransaction.reason || 'No additional notes.'}
-                    </p>
                   </div>
-                </div>
-              </>
-            )}
+                </>
+              )}
 
-            {/* Modal Footer */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'flex-end',
-                marginTop: '24px'
-              }}
-            >
-              <button
-                type="button"
-                className="cancel-btn"
-                onClick={() => {
-                  setViewingTransaction(null);
-                  setDetailError('');
+              {/* Modal Footer */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  marginTop: '24px'
                 }}
               >
-                Close
-              </button>
+                <button
+                  type="button"
+                  className="cancel-btn"
+                  onClick={() => {
+                    setViewingTransaction(null);
+                    setDetailError('');
+                  }}
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }

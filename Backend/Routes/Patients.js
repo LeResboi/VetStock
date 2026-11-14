@@ -51,130 +51,142 @@ function isValidAppointmentDate(date) {
 // GET ACTIVE VETERINARIANS
 // GET /api/patients/veterinarians
 // ======================================================
+router.get(
+    "/veterinarians",
+    authenticateToken,
+    requireRole("Administrator", "Veterinarian"),
+    async (req, res) => {
+        try {
+            // Find the Veterinarian role
+            const { data: role, error: roleError } = await supabase
+                .from("roles")
+                .select("role_id")
+                .eq("role_name", "Veterinarian")
+                .single();
 
-router.get("/veterinarians", authenticateToken, async (req, res) => {
-    try {
-        // Find the Veterinarian role
-        const { data: role, error: roleError } = await supabase
-            .from("roles")
-            .select("role_id")
-            .eq("role_name", "Veterinarian")
-            .single();
+            if (roleError) {
+                throw roleError;
+            }
 
-        if (roleError) {
-            throw roleError;
+            // Get active veterinarians in the logged-in user's clinic
+            const { data: users, error: usersError } = await supabase
+                .from("users")
+                .select("user_id, first_name, last_name")
+                .eq("clinic_id", req.user.clinic_id)
+                .eq("role_id", role.role_id)
+                .eq("is_active", true)
+                .order("first_name", { ascending: true });
+
+            if (usersError) {
+                throw usersError;
+            }
+
+            // Return each veterinarian's ID and full name
+            const veterinarians = (users || []).map(user => ({
+                user_id: user.user_id,
+                full_name: `${user.first_name || ""} ${user.last_name || ""}`.trim()
+            }));
+
+            return res.json({
+                success: true,
+                data: veterinarians
+            });
+
+        } catch (error) {
+            console.error("Fetch veterinarians error:", error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Failed to retrieve veterinarians.",
+                error: error.message
+            });
         }
-
-        // Get active veterinarians in the logged-in user's clinic
-        const { data: users, error: usersError } = await supabase
-            .from("users")
-            .select("user_id, first_name, last_name")
-            .eq("clinic_id", req.user.clinic_id)
-            .eq("role_id", role.role_id)
-            .eq("is_active", true)
-            .order("first_name", { ascending: true });
-
-        if (usersError) {
-            throw usersError;
-        }
-
-        // Return each veterinarian's ID and full name
-        const veterinarians = (users || []).map(user => ({
-            user_id: user.user_id,
-            full_name: `${user.first_name || ""} ${user.last_name || ""}`.trim()
-        }));
-
-        return res.json({
-            success: true,
-            data: veterinarians
-        });
-
-    } catch (error) {
-        console.error("Fetch veterinarians error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to retrieve veterinarians.",
-            error: error.message
-        });
-    }
-});
+    });
 
 // ======================================================
 // GET ALL PATIENTS
 // GET /api/patients
 // ======================================================
 
-router.get("/", authenticateToken, async (req, res) => {
+router.get(
+    "/",
+    authenticateToken,
+    requireRole(
+        "Administrator",
+        "Clinic Manager",
+        "Inventory Staff",
+        "Veterinarian"
+    ),
+    async (req, res) => {
 
-    try {
+        try {
 
-        const { data, error } = await supabase
-            .from("patients")
-            .select("*")
-            .eq("clinic_id", req.user.clinic_id)
-            .eq("is_active", true)
-            .order("created_at", { ascending: false });
+            const { data, error } = await supabase
+                .from("patients")
+                .select("*")
+                .eq("clinic_id", req.user.clinic_id)
+                .eq("is_active", true)
+                .order("created_at", { ascending: false });
 
-        if (error) {
-            throw error;
-        }
-
-        // Find the veterinarian IDs used by these patients
-        const veterinarianIds = [
-            ...new Set(
-                data
-                    .map(patient => patient.appointment_veterinarian_id)
-                    .filter(Boolean)
-            )
-        ];
-
-        let veterinarianNames = new Map();
-
-        if (veterinarianIds.length > 0) {
-            const { data: veterinarians, error: vetError } = await supabase
-                .from('users')
-                .select('user_id, first_name, last_name')
-                .eq('clinic_id', req.user.clinic_id)
-                .in('user_id', veterinarianIds);
-
-            if (vetError) {
-                throw vetError;
+            if (error) {
+                throw error;
             }
 
-            veterinarianNames = new Map(
-                (veterinarians || []).map(vet => [
-                    vet.user_id,
-                    `${vet.first_name || ''} ${vet.last_name || ''}`.trim()
-                ])
-            );
+            // Find the veterinarian IDs used by these patients
+            const veterinarianIds = [
+                ...new Set(
+                    data
+                        .map(patient => patient.appointment_veterinarian_id)
+                        .filter(Boolean)
+                )
+            ];
+
+            let veterinarianNames = new Map();
+
+            if (veterinarianIds.length > 0) {
+                const { data: veterinarians, error: vetError } = await supabase
+                    .from('users')
+                    .select('user_id, first_name, last_name')
+                    .eq('clinic_id', req.user.clinic_id)
+                    .in('user_id', veterinarianIds);
+
+                if (vetError) {
+                    throw vetError;
+                }
+
+                veterinarianNames = new Map(
+                    (veterinarians || []).map(vet => [
+                        vet.user_id,
+                        `${vet.first_name || ''} ${vet.last_name || ''}`.trim()
+                    ])
+                );
+            }
+
+            // Include the veterinarian name in each patient response
+            const patientsWithVetNames = data.map(patient => ({
+                ...patient,
+                appointment_veterinarian_name:
+                    veterinarianNames.get(patient.appointment_veterinarian_id) || null
+            }));
+
+            return res.json({
+                success: true,
+                data: patientsWithVetNames
+            });
+
+        } catch (error) {
+
+            console.error(error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Failed to retrieve patients.",
+                error: error.message
+            });
+
         }
 
-        // Include the veterinarian name in each patient response
-        const patientsWithVetNames = data.map(patient => ({
-            ...patient,
-            appointment_veterinarian_name:
-                veterinarianNames.get(patient.appointment_veterinarian_id) || null
-        }));
-
-        return res.json({
-            success: true,
-            data: patientsWithVetNames
-        });
-
-    } catch (error) {
-
-        console.error(error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to retrieve patients.",
-            error: error.message
-        });
-
-    }
-
-});
+    });
 
 
 // ======================================================
@@ -182,61 +194,70 @@ router.get("/", authenticateToken, async (req, res) => {
 // GET /api/patients/:id
 // ======================================================
 
-router.get("/:id", authenticateToken, async (req, res) => {
-    try {
-        const { data, error } = await supabase
-            .from("patients")
-            .select("*")
-            .eq("patient_id", req.params.id)
-            .eq("clinic_id", req.user.clinic_id)
-            .single();
+router.get(
+    "/:id",
+    authenticateToken,
+    requireRole(
+        "Administrator",
+        "Clinic Manager",
+        "Inventory Staff",
+        "Veterinarian"
+    ),
+    async (req, res) => {
+        try {
+            const { data, error } = await supabase
+                .from("patients")
+                .select("*")
+                .eq("patient_id", req.params.id)
+                .eq("clinic_id", req.user.clinic_id)
+                .single();
 
-        if (error || !data) {
-            return res.status(404).json({
+            if (error || !data) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Patient not found."
+                });
+            }
+
+            // Get the assigned veterinarian's full name
+            let appointment_veterinarian_name = null;
+
+            if (data.appointment_veterinarian_id) {
+                const { data: veterinarian, error: vetError } = await supabase
+                    .from("users")
+                    .select("first_name, last_name")
+                    .eq("user_id", data.appointment_veterinarian_id)
+                    .eq("clinic_id", req.user.clinic_id)
+                    .maybeSingle();
+
+                if (vetError) {
+                    throw vetError;
+                }
+
+                if (veterinarian) {
+                    appointment_veterinarian_name =
+                        `${veterinarian.first_name || ""} ${veterinarian.last_name || ""}`.trim();
+                }
+            }
+
+            return res.json({
+                success: true,
+                data: {
+                    ...data,
+                    appointment_veterinarian_name
+                }
+            });
+
+        } catch (error) {
+            console.error("Get patient error:", error);
+
+            return res.status(500).json({
                 success: false,
-                message: "Patient not found."
+                message: "Failed to retrieve patient.",
+                error: error.message
             });
         }
-
-        // Get the assigned veterinarian's full name
-        let appointment_veterinarian_name = null;
-
-        if (data.appointment_veterinarian_id) {
-            const { data: veterinarian, error: vetError } = await supabase
-                .from("users")
-                .select("first_name, last_name")
-                .eq("user_id", data.appointment_veterinarian_id)
-                .eq("clinic_id", req.user.clinic_id)
-                .maybeSingle();
-
-            if (vetError) {
-                throw vetError;
-            }
-
-            if (veterinarian) {
-                appointment_veterinarian_name =
-                    `${veterinarian.first_name || ""} ${veterinarian.last_name || ""}`.trim();
-            }
-        }
-
-        return res.json({
-            success: true,
-            data: {
-                ...data,
-                appointment_veterinarian_name
-            }
-        });
-
-    } catch (error) {
-        console.error("Get patient error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to retrieve patient.",
-            error: error.message
-        });
-    }
-});
+    });
 
 
 // ======================================================
@@ -249,7 +270,6 @@ router.post(
     authenticateToken,
     requireRole(
         "Administrator",
-        "Clinic Manager",
         "Veterinarian"
     ),
     async (req, res) => {
@@ -444,7 +464,6 @@ router.patch(
     authenticateToken,
     requireRole(
         "Administrator",
-        "Clinic Manager",
         "Veterinarian"
     ),
     async (req, res) => {
@@ -628,8 +647,6 @@ router.delete(
     authenticateToken,
     requireRole(
         "Administrator",
-        "Clinic Manager",
-        "Veterinarian"
     ),
     async (req, res) => {
 

@@ -52,6 +52,9 @@ export default function UserManagement() {
     const [showApproveModal, setShowApproveModal] = useState(false);
     const [showRejectModal, setShowRejectModal] = useState(false);
 
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+
     // ========================================================
     // FETCH USERS AND PENDING REQUESTS
     // ========================================================
@@ -331,7 +334,7 @@ export default function UserManagement() {
 
         try {
             setSubmitting(true);
-        
+
             const token = localStorage.getItem("token");
 
             const response = await fetch(
@@ -373,6 +376,68 @@ export default function UserManagement() {
         } finally {
             setSubmitting(false);
         }
+    };
+
+    // ========================================================
+    // DELETE / DEACTIVATE USER ACCOUNT
+    // ========================================================
+
+    const openDeleteModal = (user) => {
+        setSelectedUser(user);
+        setNotification(null);
+        setShowDeleteModal(true);
+    };
+
+    const handleDeleteUser = async () => {
+        if (!selectedUser) return;
+
+        try {
+            setSubmitting(true);
+
+            const token = localStorage.getItem("token");
+
+            const response = await fetch(
+                `${API_URL}/users/${selectedUser.user_id}`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(
+                    result.message || "Unable to deactivate user account."
+                );
+            }
+
+            setShowDeleteModal(false);
+            setSelectedUser(null);
+
+            showNotification(
+                result.message || "User account deactivated successfully.",
+                "success"
+            );
+
+            await fetchData(false);
+
+        } catch (err) {
+            console.error("Delete account error:", err);
+            showNotification(err.message, "error");
+
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const closeDeleteModal = () => {
+        if (submitting) return;
+
+        setShowDeleteModal(false);
+        setSelectedUser(null);
     };
 
     // ========================================================
@@ -645,6 +710,7 @@ export default function UserManagement() {
                                 <th>Role</th>
                                 <th>Account Status</th>
                                 <th>Date Created</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
 
@@ -684,6 +750,19 @@ export default function UserManagement() {
 
                                         <td>
                                             {formatDate(user.created_at)}
+                                        </td>
+
+                                        <td>
+                                            {user.is_active && (
+                                                <button
+                                                    type="button"
+                                                    className="um-delete-btn"
+                                                    onClick={() => openDeleteModal(user)}
+                                                >
+                                                    <i className="fa-solid fa-trash"></i>
+                                                    Delete
+                                                </button>
+                                            )}
                                         </td>
 
                                     </tr>
@@ -899,6 +978,80 @@ export default function UserManagement() {
                             </button>
                         </div>
                     </div>
+                </div>
+            )}
+            {/* DELETE ACCOUNT CONFIRMATION MODAL */}
+
+            {showDeleteModal && selectedUser && (
+                <div className="um-modal-overlay">
+
+                    <div className="um-confirm-modal">
+
+                        <div className="um-confirm-icon reject">
+                            <i className="fa-solid fa-user-slash"></i>
+                        </div>
+
+                        <h2>Deactivate User Account?</h2>
+
+                        <p className="um-confirm-description">
+                            Are you sure you want to deactivate this user's
+                            VetStock account?
+                        </p>
+
+                        <div className="um-confirm-details">
+
+                            <div>
+                                <span>User Name</span>
+                                <strong>
+                                    {selectedUser.first_name} {selectedUser.last_name}
+                                </strong>
+                            </div>
+
+                            <div>
+                                <span>Email Address</span>
+                                <strong>{selectedUser.email}</strong>
+                            </div>
+
+                            <div>
+                                <span>Assigned Role</span>
+                                <strong>
+                                    {selectedUser.roles?.role_name || "Unknown"}
+                                </strong>
+                            </div>
+
+                        </div>
+
+                        <p className="um-role-warning">
+                            This action will prevent the user from logging in.
+                            Historical transactions and audit logs will be preserved.
+                        </p>
+
+                        <div className="um-confirm-actions">
+
+                            <button
+                                type="button"
+                                className="um-cancel-btn"
+                                onClick={closeDeleteModal}
+                                disabled={submitting}
+                            >
+                                Cancel
+                            </button>
+
+                            <button
+                                type="button"
+                                className="um-reject-confirm-btn"
+                                onClick={handleDeleteUser}
+                                disabled={submitting}
+                            >
+                                {submitting
+                                    ? "Deactivating..."
+                                    : "Confirm Deactivation"}
+                            </button>
+
+                        </div>
+
+                    </div>
+
                 </div>
             )}
         </div>

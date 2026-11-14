@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './Forecast.css';
 
 export default function Forecast() {
@@ -10,6 +10,14 @@ export default function Forecast() {
   const [generatedAt, setGeneratedAt] = useState(null);
   const [retryAfter, setRetryAfter] = useState(null);
 
+  const [userRole, setUserRole] = useState('');
+  const [userRoleLoading, setUserRoleLoading] = useState(true);
+
+  const canGenerateForecast = [
+    'Administrator',
+    'Clinic Manager'
+  ].includes(userRole);
+
   const formatQuantity = (value) => {
     if (value === null || value === undefined) {
       return 'Insufficient data';
@@ -20,7 +28,7 @@ export default function Forecast() {
 
 
 
-  const fetchAiForecast = async (refresh = false) => {
+  const fetchAiForecast = useCallback(async (refresh = false) => {
     setLoading(true);
     setError(null);
     setRetryAfter(null);
@@ -81,12 +89,47 @@ export default function Forecast() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
 
   useEffect(() => {
+
+    const fetchUserRole = async () => {
+      try {
+        const token = localStorage.getItem('token');
+
+        const response = await fetch(
+          'http://localhost:3001/api/auth/me',
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(
+            data.message || 'Unable to retrieve user role.'
+          );
+        }
+
+        setUserRole(data.data?.role || '');
+
+      } catch (error) {
+        console.error('Fetch user role error:', error);
+        setUserRole('');
+
+      } finally {
+        setUserRoleLoading(false);
+      }
+    };
+
+    fetchUserRole();
     fetchAiForecast();
-  }, []);
+
+  }, [fetchAiForecast]);
 
   const hasForecastData =
     Boolean(aiReport) || itemForecasts.length > 0;
@@ -96,12 +139,9 @@ export default function Forecast() {
     if (!text) return null;
 
     const sections = text.split(/\n##+\s+/).filter(Boolean);
-
     const parsedSections = sections.map((section, index) => {
       const lines = section.trim().split('\n');
-
       let title = lines[0].replace(/[*#]/g, '').trim();
-
       if (!title) {
         title = "VetStock Insight";
       }
@@ -163,14 +203,16 @@ export default function Forecast() {
           <h2>VetStock AI Intelligence</h2>
           <p>Smart inventory analytics and restocking recommendations powered by Open AI.</p>
         </div>
-        <button
-          className="refresh-btn"
-          onClick={() => fetchAiForecast(true)}
-          disabled={loading}
-        >
-          <i className={`fa-solid fa-rotate-right ${loading ? 'fa-spin' : ''}`}></i>
-          {loading ? 'Analyzing...' : 'Refresh Analysis'}
-        </button>
+        {!userRoleLoading && canGenerateForecast && (
+          <button
+            className="refresh-btn"
+            onClick={() => fetchAiForecast(true)}
+            disabled={loading}
+          >
+            <i className={`fa-solid fa-rotate-right ${loading ? 'fa-spin' : ''}`}></i>
+            {loading ? 'Analyzing...' : 'Refresh Analysis'}
+          </button>
+        )}
       </div>
 
       {/* Main Content */}
@@ -195,12 +237,14 @@ export default function Forecast() {
               </p>
             )}
 
-            <button
-              className="retry-btn"
-              onClick={() => fetchAiForecast(true)}
-            >
-              Try Again
-            </button>
+            {canGenerateForecast && (
+              <button
+                className="retry-btn"
+                onClick={() => fetchAiForecast(true)}
+              >
+                Try Again
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -223,13 +267,15 @@ export default function Forecast() {
                   </p>
                 )}
 
-                <button
-                  className="retry-btn"
-                  onClick={() => fetchAiForecast(true)}
-                  disabled={loading}
-                >
-                  Try Again
-                </button>
+                {canGenerateForecast && (
+                  <button
+                    className="retry-btn"
+                    onClick={() => fetchAiForecast(true)}
+                    disabled={loading}
+                  >
+                    Try Again
+                  </button>
+                )}
               </div>
             )}
 

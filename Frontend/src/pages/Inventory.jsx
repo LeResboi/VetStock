@@ -56,9 +56,54 @@ export default function Inventory() {
 
   const token = localStorage.getItem('token');
 
+  // ============================================================
+  // USER ROLE AND INVENTORY PERMISSIONS
+  // ============================================================
+
+  const [userRole, setUserRole] = useState('');
+  const [roleLoading, setRoleLoading] = useState(true);
+
+  const canManageInventory =
+    ['Administrator', 'Inventory Staff'].includes(userRole);
+
+  // Fetch current user's role
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      try {
+        const response = await fetch(
+          'http://localhost:3001/api/auth/me',
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(
+            data.message || 'Unable to retrieve user role.'
+          );
+        }
+
+        setUserRole(data.data?.role || '');
+
+      } catch (error) {
+        console.error('Fetch inventory user role error:', error);
+        setUserRole('');
+
+      } finally {
+        setRoleLoading(false);
+      }
+    };
+
+    fetchUserRole();
+  }, [token]);
+
   async function handleAddInventory(event) {
     event.preventDefault();
-
+    if (!canManageInventory) return;
     if (saving) return;
 
     setSaving(true);
@@ -120,7 +165,7 @@ export default function Inventory() {
 
   async function handleUpdateInventory(event) {
     event.preventDefault();
-
+    if (!canManageInventory) return;
     if (updating || !selectedItem) return;
 
     setUpdating(true);
@@ -176,6 +221,7 @@ export default function Inventory() {
   // ============================================================
 
   async function handleDeleteInventory() {
+    if (!canManageInventory) return;
     if (deleting || !selectedItem) return;
 
     setDeleting(true);
@@ -218,6 +264,7 @@ export default function Inventory() {
   // ============================================================
 
   function openEditModal(item) {
+    if (!canManageInventory) return;
     setActionError('');
 
     setSelectedItem(item);
@@ -341,19 +388,21 @@ export default function Inventory() {
           <h2>Inventory Management</h2>
           <p>Real-time tracking of veterinary medicines, supplies, and stock levels from Supabase.</p>
         </div>
-        <button
-          type="button"
-          className="add-btn"
-          onClick={() => {
-            setAddError('');
-            setShowAddModal(true);
-          }}
-        >
-          <i className="fa-solid fa-plus"></i> Add New Item
-        </button>
+        {!roleLoading && canManageInventory && (
+          <button
+            type="button"
+            className="add-btn"
+            onClick={() => {
+              setAddError('');
+              setShowAddModal(true);
+            }}
+          >
+            <i className="fa-solid fa-plus"></i> Add New Item
+          </button>
+        )}
       </div>
 
-      {showAddModal && (
+      {showAddModal && canManageInventory && (
         <div className="modal-overlay">
           <div className="inventory-modal">
 
@@ -636,8 +685,6 @@ export default function Inventory() {
                   <p>{selectedItem.reorder_point ?? 0}</p>
                 </div>
 
-
-
                 <div className="inventory-detail-item">
                   <label>Storage Conditions</label>
                   <p>{selectedItem.storage_conditions || 'Not specified'}</p>
@@ -682,38 +729,42 @@ export default function Inventory() {
 
             </div>
 
+
             <div className="modal-footer">
-              <button
-                type="button"
-                className="primary-btn"
-                onClick={() => openEditModal(selectedItem)}
-              >
-                <i className="fa-solid fa-pen"></i> Edit Item
-              </button>
+              {canManageInventory && (
+                <>
+                  <button
+                    type="button"
+                    className="primary-btn"
+                    onClick={() => openEditModal(selectedItem)}
+                  >
+                    <i className="fa-solid fa-pen"></i> Edit Item
+                  </button>
 
-              <button
-                type="button"
-                className="delete-btn"
-                style={{
-                  backgroundColor: '#dc2626',
-                  color: '#ffffff',
-                  border: '1px solid #dc2626',
-                  padding: '10px 16px',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s'
-                }}
-                onClick={() => {
-                  setActionError('');
-                  setShowDetailsModal(false);
-                  setShowDeleteModal(true);
-                }}
-              >
-                <i className="fa-solid fa-trash"></i> Delete Item
-              </button>
-
+                  <button
+                    type="button"
+                    className="delete-btn"
+                    style={{
+                      backgroundColor: '#dc2626',
+                      color: '#ffffff',
+                      border: '1px solid #dc2626',
+                      padding: '10px 16px',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onClick={() => {
+                      setActionError('');
+                      setShowDetailsModal(false);
+                      setShowDeleteModal(true);
+                    }}
+                  >
+                    <i className="fa-solid fa-trash"></i> Delete Item
+                  </button>
+                </>
+              )}
 
               <button
                 type="button"
@@ -728,10 +779,10 @@ export default function Inventory() {
       )}
 
       {/* ============================================================
-    EDIT INVENTORY MODAL
-============================================================ */}
+        EDIT INVENTORY MODAL
+        ============================================================ */}
 
-      {showEditModal && selectedItem && (
+      {showEditModal && selectedItem && canManageInventory && (
         <div
           className="modal-overlay"
           onClick={() => {
@@ -915,7 +966,7 @@ export default function Inventory() {
     DELETE INVENTORY CONFIRMATION MODAL
 ============================================================ */}
 
-      {showDeleteModal && selectedItem && (
+      {showDeleteModal && selectedItem && canManageInventory && (
         <div
           className="modal-overlay"
           onClick={() => {
@@ -1048,13 +1099,13 @@ export default function Inventory() {
               <th>Quantity</th>
               <th>Unit Price</th>
               <th>Status</th>
-              <th>Actions</th>
+              {canManageInventory && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="7" className="no-data">Loading inventory from database...</td>
+                <td colSpan={canManageInventory ? 7 : 6} className="no-data">Loading inventory from database...</td>
               </tr>
             ) : filteredInventory.length > 0 ?
               (paginatedInventory.map((item, index) => {
@@ -1092,40 +1143,44 @@ export default function Inventory() {
                         {stockStatus}
                       </span>
                     </td>
-                    <td>
-                      <div
-                        className="action-buttons"
-                        onClick={e => e.stopPropagation()}
-                      >
-                        <button
-                          type="button"
-                          className="icon-btn edit"
-                          title="Edit Inventory Item"
-                          onClick={() => openEditModal(item)}
-                        >
-                          <i className="fa-solid fa-pen"></i>
-                        </button>
 
-                        <button
-                          type="button"
-                          className="icon-btn delete"
-                          title="Delete Inventory Item"
-                          onClick={() => {
-                            setSelectedItem(item);
-                            setActionError('');
-                            setShowDeleteModal(true);
-                          }}
+                    {canManageInventory && (
+                      <td>
+                        <div
+                          className="action-buttons"
+                          onClick={e => e.stopPropagation()}
                         >
-                          <i className="fa-solid fa-trash"></i>
-                        </button>
-                      </div>
-                    </td>
+                          <button
+                            type="button"
+                            className="icon-btn edit"
+                            title="Edit Inventory Item"
+                            onClick={() => openEditModal(item)}
+                          >
+                            <i className="fa-solid fa-pen"></i>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="icon-btn delete"
+                            title="Delete Inventory Item"
+                            onClick={() => {
+                              setSelectedItem(item);
+                              setActionError('');
+                              setShowDeleteModal(true);
+                            }}
+                          >
+                            <i className="fa-solid fa-trash"></i>
+                          </button>
+                        </div>
+                      </td>
+                    )}
+
                   </tr>
                 );
               })
               ) : (
                 <tr>
-                  <td colSpan="6" className="no-data">No inventory items found from database.</td>
+                  <td colSpan={canManageInventory ? 7 : 6} className="no-data">No inventory items found from database.</td>
                 </tr>
               )}
           </tbody>

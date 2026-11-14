@@ -1,9 +1,9 @@
 
-// FILE: Middleware/Role.js
+// FILE: Middleware/Roles.js
 // PURPOSE: VetStock Role-Based Access Control
 
 // ======================================================
-// ROLE-BASED ACCESS CONTROL
+// 1. ROLE-BASED ACCESS CONTROL
 // ======================================================
 
 export function requireRole(...allowedRoles) {
@@ -36,8 +36,9 @@ export function requireRole(...allowedRoles) {
     };
 }
 
+
 // ======================================================
-// PERMISSION-BASED ACCESS CONTROL
+// 2. PERMISSION-BASED ACCESS CONTROL
 // ======================================================
 
 export function requirePermission(...requiredPermissions) {
@@ -64,6 +65,44 @@ export function requirePermission(...requiredPermissions) {
         );
 
         if (!hasPermission) {
+            return res.status(403).json({
+                success: false,
+                message: "You do not have permission to perform this action."
+            });
+        }
+
+        next();
+    };
+}
+
+
+// ======================================================
+// 3. PERMISSION CHECK WITH TEMPORARY LEGACY ROLE SUPPORT
+// PURPOSE: Gradually migrate VetStock roles to RBAC
+// ======================================================
+
+export function requirePermissionOrLegacyRoles(
+    permission,
+    ...legacyRoles
+) {
+    return (req, res, next) => {
+
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required."
+            });
+        }
+
+        const userPermissions = req.user.permissions || [];
+
+        const hasPermission =
+            Array.isArray(userPermissions) &&
+            userPermissions.includes(permission);
+
+        const hasLegacyRole = legacyRoles.includes(req.user.role);
+
+        if (!hasPermission && !hasLegacyRole) {
             return res.status(403).json({
                 success: false,
                 message: "You do not have permission to perform this action."

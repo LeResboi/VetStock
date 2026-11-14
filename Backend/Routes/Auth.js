@@ -6,7 +6,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "node:crypto";
 
-import { sendPasswordResetEmail } from "../Utils/EmailService.js";
+import { sendPasswordResetEmail, sendRegistrationRejectionEmail } from "../Utils/EmailService.js";
 import { supabase } from "../VetStockDatabase/Supabase.js";
 import { createAuditLog } from "../Utils/AuditLogger.js";
 import { authenticateToken } from "../Middleware/Authentication.js";
@@ -60,6 +60,162 @@ router.get(
         }
     }
 );
+
+
+// ============================================================
+// DEACTIVATE USER ACCOUNT
+// ADMINISTRATOR ONLY - SOFT DELETE
+// ============================================================
+
+router.delete(
+    "/users/:userId",
+    authenticateToken,
+    requireRole("Administrator"),
+    async (req, res) => {
+        try {
+            const { userId } = req.params;
+
+            // ------------------------------------------------
+            // PREVENT SELF-DEACTIVATION
+            // ------------------------------------------------
+
+            if (String(userId) === String(req.user.user_id)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "You cannot deactivate your own account."
+                });
+            }
+
+            // ------------------------------------------------
+            // FIND TARGET USER WITHIN THE SAME CLINIC
+            // ------------------------------------------------
+
+            const { data: targetUser, error: userError } =
+                await supabase
+                    .from("users")
+                    .select(`
+                        user_id,
+                        clinic_id,
+                        first_name,
+                        last_name,
+                        email,
+                        is_active,
+                        roles (
+                            role_name
+                        )
+                    `)
+                    .eq("user_id", userId)
+                    .eq("clinic_id", req.user.clinic_id)
+                    .maybeSingle();
+
+            if (userError) throw userError;
+
+            if (!targetUser) {
+                return res.status(404).json({
+                    success: false,
+                    message: "User account not found in your clinic."
+                });
+            }
+
+            if (!targetUser.is_active) {
+                return res.status(400).json({
+                    success: false,
+                    message: "This account is already inactive."
+                });
+            }
+
+            // ------------------------------------------------
+            // PROTECT THE LAST ACTIVE ADMINISTRATOR
+            // ------------------------------------------------
+
+            if (targetUser.roles?.role_name === "Administrator") {
+
+                const { data: activeUsers, error: adminError } =
+                    await supabase
+                        .from("users")
+                        .select(`
+                            user_id,
+                            roles (
+                                role_name
+                            )
+                        `)
+                        .eq("clinic_id", req.user.clinic_id)
+                        .eq("is_active", true);
+
+                if (adminError) throw adminError;
+
+                const activeAdministrators = (activeUsers || [])
+                    .filter(user =>
+                        user.roles?.role_name === "Administrator"
+                    );
+
+                if (activeAdministrators.length <= 1) {
+                    return res.status(403).json({
+                        success: false,
+                        message: "You cannot deactivate the last active Administrator in your clinic."
+                    });
+                }
+            }
+
+            // ------------------------------------------------
+            // DEACTIVATE ACCOUNT
+            // ------------------------------------------------
+
+            const { data: deactivatedUser, error: updateError } =
+                await supabase
+                    .from("users")
+                    .update({
+                        is_active: false
+                    })
+                    .eq("user_id", userId)
+                    .eq("clinic_id", req.user.clinic_id)
+                    .eq("is_active", true)
+                    .select("user_id")
+                    .maybeSingle();
+
+            if (updateError) throw updateError;
+
+            if (!deactivatedUser) {
+                return res.status(409).json({
+                    success: false,
+                    message: "The account could not be deactivated. It may have already been updated."
+                });
+            }
+
+            // ------------------------------------------------
+            // RECORD DEACTIVATION IN AUDIT LOGS
+            // ------------------------------------------------
+
+            await createAuditLog(req, {
+                action: "USER_DEACTIVATED",
+                targetTable: "users",
+                targetId: targetUser.user_id,
+                details: {
+                    description:
+                        `Deactivated account of ${targetUser.first_name} ${targetUser.last_name}`,
+                    email: targetUser.email,
+                    role: targetUser.roles?.role_name || "Unknown",
+                    deactivated_by: req.user.user_id
+                },
+                throwOnError: true
+            });
+
+            return res.json({
+                success: true,
+                message: `${targetUser.first_name} ${targetUser.last_name}'s account has been deactivated successfully.`
+            });
+
+        } catch (error) {
+            console.error("Deactivate user error:", error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Unable to deactivate user account."
+            });
+        }
+    }
+);
+
 
 // ============================================================
 // GET PENDING REGISTRATION REQUESTS
@@ -573,9 +729,31 @@ router.post(
                 }
             });
 
+            // Send rejection notification to the applicant
+            let emailSent = false;
+
+            try {
+                await sendRegistrationRejectionEmail(
+                    rejectedRequest.email,
+                    rejectedRequest.first_name,
+                    reason
+                );
+
+                emailSent = true;
+
+            } catch (emailError) {
+                console.error(
+                    "Registration rejection email error:",
+                    emailError.message
+                );
+            }
+
             return res.json({
                 success: true,
-                message: "Registration request rejected successfully."
+                message: emailSent
+                    ? "Registration rejected and email notification sent."
+                    : "Registration rejected, but the email notification could not be sent.",
+                email_sent: emailSent
             });
 
         } catch (error) {
@@ -588,7 +766,6 @@ router.post(
         }
     }
 );
-
 
 // ============================================================
 // FORGOT PASSWORD
@@ -977,6 +1154,42 @@ router.post("/login", async (req, res) => {
         });
     }
 });
+
+
+// ============================================================
+// GET CURRENT AUTHENTICATED USER AND PERMISSIONS
+// ============================================================
+
+router.get(
+    "/me",
+    authenticateToken,
+    async (req, res) => {
+        try {
+            return res.json({
+                success: true,
+                data: {
+                    user_id: req.user.user_id,
+                    email: req.user.email,
+                    first_name: req.user.first_name,
+                    last_name: req.user.last_name,
+                    clinic_id: req.user.clinic_id,
+                    role_id: req.user.role_id,
+                    role: req.user.role,
+                    permissions: req.user.permissions || []
+                }
+            });
+
+        } catch (error) {
+            console.error("Get current user error:", error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Unable to retrieve current user information."
+            });
+        }
+    }
+);
+
 
 // ============================================================
 // LOGOUT

@@ -99,8 +99,6 @@ router.post(
     requireRole(
         "Administrator",
         "Clinic Manager",
-        "Inventory Staff",
-        "Veterinarian"
     ),
     async (req, res) => {
         try {
@@ -164,7 +162,8 @@ router.post(
                             is_active
                         )
                     `)
-                    .eq("clinic_id", clinicId);
+                    .eq("clinic_id", clinicId)
+                    .eq("is_active", true);
 
             if (itemError) {
                 throw itemError;

@@ -503,18 +503,24 @@ export function MainLayout() {
                             </span>
                         </button>
 
-                        <button
-                            className={`sidebar-menu-item ${currentPath === '/healthrecords'
-                                ? 'active'
-                                : ''
-                                }`}
-                            onClick={() => navigate('/HealthRecords')}
-                        >
-                            <i className="fa-solid fa-file-medical"></i>
-                            <span className="menu-label">
-                                Health Records
-                            </span>
-                        </button>
+
+                        {/* HEALTH RECORDS - HIDDEN FOR INVENTORY STAFF */}
+                        {['administrator', 'clinic manager', 'veterinarian'].includes(
+                            userRole?.trim().toLowerCase()
+                        ) && (
+                                <button
+                                    className={`sidebar-menu-item ${currentPath === '/healthrecords'
+                                        ? 'active'
+                                        : ''
+                                        }`}
+                                    onClick={() => navigate('/HealthRecords')}
+                                >
+                                    <i className="fa-solid fa-file-medical"></i>
+                                    <span className="menu-label">
+                                        Health Records
+                                    </span>
+                                </button>
+                            )}
 
                         <button
                             className={`sidebar-menu-item ${currentPath === '/forecast'
@@ -625,14 +631,13 @@ export function MainLayout() {
                     <div className="page-title">
                         <h1
                             style={{
-                                fontSize: '22px',
+                                fontSize: '25px',
                                 fontWeight: 'bold',
-                                fontFamily: 'times new roman, sans-serif',
-                                spacing: '1px',
+                                spacing: '10px',
                                 color: '#000000'
                             }}
                         >
-                            Welcome Back
+                            VetStock Dashboard
                         </h1>
                     </div>
 

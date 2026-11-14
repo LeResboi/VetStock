@@ -37,6 +37,31 @@ export default function Dashboard({ showPage }) {
         return () => clearInterval(interval);
     }, []);
 
+    const [userName, setUserName] = useState('');
+
+    useEffect(() => {
+        try {
+            const storedUser = JSON.parse(
+                localStorage.getItem('user') || '{}'
+            );
+
+            const first = storedUser.first_name || storedUser.firstName || '';
+            const last = storedUser.last_name || storedUser.lastName || '';
+
+            const fullName =
+                storedUser.name ||
+                `${first} ${last}`.trim() ||
+                storedUser.username ||
+                storedUser.email ||
+                'User';
+
+            setUserName(fullName);
+        } catch (error) {
+            console.error('Error reading user information:', error);
+            setUserName('User');
+        }
+    }, []);
+
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
@@ -50,7 +75,7 @@ export default function Dashboard({ showPage }) {
     const totalItems = inventory.length;
     const stockInThisMonth = transactions.filter(t => String(t.transaction_type || "").toUpperCase() === "IN" && isThisMonth(t.created_at)).length;
     const stockOutThisMonth = transactions.filter(t => String(t.transaction_type || "").toUpperCase() === "OUT" && isThisMonth(t.created_at)).length;
-    
+
     const lowStockCount = inventory.filter(item => {
         const qty = Number(item.quantity ?? 0);
         const reorder = Number(item.reorder_point ?? item.min_stock_level ?? 0);
@@ -58,7 +83,7 @@ export default function Dashboard({ showPage }) {
     }).length;
 
     const stockOutTransactions = transactions.filter(t => String(t.transaction_type || "").toUpperCase() === "OUT" && isThisMonth(t.created_at));
-    
+
     let w1Count = 0, w2Count = 0, w3Count = 0, w4Count = 0;
     stockOutTransactions.forEach(t => {
         const day = new Date(t.created_at).getDate();
@@ -74,13 +99,13 @@ export default function Dashboard({ showPage }) {
     return (
         <div className="page active-page" style={{ paddingBottom: "40px" }}>
             <div className="dashboard-main-layout">
-                
+
                 {/* LEFT SIDE COLUMN */}
                 <div className="dashboard-left-column">
-                    
+
                     <div className="dashboard-search-bar">
                         <div>
-                            <h2 style={{ fontSize: "18px", fontWeight: "700", color: "var(--text)" }}>Hello, Admin!</h2>
+                            <h4 style={{ fontSize: "18px", fontWeight: "700", color: "var(--text)" }}>Welcome Back!, {userName}! </h4>
                             <p style={{ fontSize: "12px", color: "var(--muted)" }}>Here is your inventory overview for this month.</p>
                         </div>
                         <div className="dashboard-search-input-wrapper">
@@ -121,7 +146,7 @@ export default function Dashboard({ showPage }) {
 
                     {/* GRAPH & ACTION TILES SECTION */}
                     <div className="dashboard-split-grid">
-                        
+
                         <div className="analytics-card-custom">
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <div>

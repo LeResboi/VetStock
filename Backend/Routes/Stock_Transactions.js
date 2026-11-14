@@ -4,7 +4,7 @@
 import express from "express";
 import { supabase } from "../VetStockDatabase/Supabase.js";
 import { authenticateToken } from "../Middleware/Authentication.js";
-import { requireRole } from "../Middleware/Roles.js";
+import { requireRole, requirePermissionOrLegacyRoles } from "../Middleware/Roles.js";
 import { createAuditLog } from "../Utils/AuditLogger.js";
 
 const router = express.Router();
@@ -14,15 +14,15 @@ const router = express.Router();
 // GET ALL STOCK TRANSACTIONS
 // GET /api/stock-transactions
 // ======================================================
-router.get(
-    "/batches",
-    authenticateToken,
-    requireRole(
+router.get("/batches", authenticateToken, requirePermissionOrLegacyRoles
+    (
+        "inventory.batches.view",
         "Administrator",
         "Inventory Staff",
         "Veterinarian"
     ),
     async (req, res) => {
+
         try {
             const { data: items, error: itemError } =
                 await supabase
@@ -105,10 +105,12 @@ router.get(
 // GET ONE STOCK TRANSACTION
 // GET /api/stock-transactions/:id
 // ======================================================
-router.get(
-    "/:id",
-    authenticateToken,
-    requireRole("Administrator", "Inventory Staff"),
+router.get("/:id", authenticateToken, requirePermissionOrLegacyRoles
+    (
+        "transactions.details.view",
+        "Administrator",
+        "Inventory Staff"
+    ),
     async (req, res) => {
         try {
             const { data: transaction, error } = await supabase
@@ -217,14 +219,13 @@ router.post(
             const allowedTypes = [
                 "IN",
                 "OUT",
-                "ADJUSTMENT"
             ];
 
             if (!allowedTypes.includes(transaction_type)) {
                 return res.status(400).json({
                     success: false,
                     message:
-                        "transaction_type must be IN, OUT, or ADJUSTMENT."
+                        "transaction_type must be IN or OUT."
                 });
             }
 
@@ -255,6 +256,7 @@ router.post(
 
             let data;
             let error;
+            let recordedBatchNumber = null;
 
             if (transaction_type === "OUT") {
 
@@ -299,21 +301,16 @@ router.post(
 
                 if (receivingMethod === "NEW_BATCH") {
 
-                    if (
-                        typeof batch_number !== "string" ||
-                        !batch_number.trim()
-                    ) {
-                        return res.status(400).json({
-                            success: false,
-                            message: "Batch number is required for a new batch."
-                        });
-                    }
+                    // Automatically generate a batch number
+                    const generatedBatchNumber = `BATCH-${Date.now()}`;
+
+                    recordedBatchNumber = generatedBatchNumber;
 
                     const result = await supabase.rpc(
                         "receive_new_batch",
                         {
                             p_item_id: item_id,
-                            p_batch_number: batch_number.trim(),
+                            p_batch_number: generatedBatchNumber,
                             p_expiration_date: expiration_date || null,
                             p_quantity: parsedQuantity,
                             p_user_id: req.user.user_id,
@@ -324,7 +321,6 @@ router.post(
 
                     data = result.data;
                     error = result.error;
-
 
                     // ==========================================
                     // OPTION 2: ADD TO EXISTING BATCH
@@ -364,34 +360,11 @@ router.post(
 
                 }
 
-                // ==========================================
-                // ADJUSTMENT — keep existing behavior
-                // ==========================================
-            } else {
-
-                const result = await supabase
-                    .from("stock_transactions")
-                    .insert([{
-                        item_id,
-                        batch_id: batch_id || null,
-                        user_id: req.user.user_id,
-                        patient_id: patient_id || null,
-                        prescription_id: prescription_id || null,
-                        transaction_type,
-                        quantity: parsedQuantity,
-                        reason: reason || null
-                    }])
-                    .select()
-                    .single();
-
-                data = result.data;
-                error = result.error;
             }
-
             if (error) {
                 console.error("Stock transaction error:", error);
 
-                
+
                 const errorMessage =
                     error.message || "Unknown database error.";
 
@@ -441,9 +414,7 @@ router.post(
             const auditAction =
                 transaction_type === "IN"
                     ? "STOCK_IN"
-                    : transaction_type === "OUT"
-                        ? "STOCK_OUT"
-                        : "STOCK_ADJUSTMENT";
+                    : "STOCK_OUT";
 
             await createAuditLog(req, {
                 action: auditAction,
@@ -457,7 +428,7 @@ router.post(
                     item_name: item.item_name,
 
                     batch_id: batch_id || null,
-                    batch_number: batch_number || null,
+                    batch_number: recordedBatchNumber,
 
                     transaction_type,
                     quantity: parsedQuantity,
@@ -493,10 +464,13 @@ router.post(
 // GET ALL STOCK TRANSACTIONS
 // GET /api/stock-transactions
 // ======================================================
-router.get(
-    "/",
-    authenticateToken,
-    requireRole("Administrator", "Inventory Staff"),
+router.get("/", authenticateToken, requirePermissionOrLegacyRoles
+    (
+        "transactions.view",
+        "Administrator",
+        "Inventory Staff",
+        "Veterinarian"
+    ),
     async (req, res) => {
         try {
             const { data: items, error: itemError } =
@@ -513,14 +487,23 @@ router.get(
                 return res.json({ success: true, data: [] });
             }
 
-            const { data, error } = await supabase
+            let transactionQuery = supabase
                 .from("stock_transactions")
                 .select(`
-                    *,
-                    inventory_items (item_name),
-                    users (first_name, last_name)
-                `)
-                .in("item_id", itemIds)
+        *,
+        inventory_items (item_name),
+        users (first_name, last_name)
+    `)
+                .in("item_id", itemIds);
+
+            // Veterinarians can only view their own Stock OUT history.
+            if (req.user.role === "Veterinarian") {
+                transactionQuery = transactionQuery
+                    .eq("user_id", req.user.user_id)
+                    .eq("transaction_type", "OUT");
+            }
+
+            const { data, error } = await transactionQuery
                 .order("created_at", { ascending: true });
 
             if (error) throw error;

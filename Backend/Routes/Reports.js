@@ -4,6 +4,7 @@
 import express from "express";
 import { supabase } from "../VetStockDatabase/Supabase.js";
 import { authenticateToken } from "../Middleware/Authentication.js";
+import { requireRole } from "../Middleware/Roles.js";
 
 const router = express.Router();
 
@@ -16,6 +17,12 @@ const router = express.Router();
 router.get(
     "/inventory-summary",
     authenticateToken,
+    requireRole(
+        "Administrator",
+        "Clinic Manager",
+        "Inventory Staff",
+        "Veterinarian"
+    ),
     async (req, res) => {
         try {
             const { data: items, error: itemError } = await supabase
@@ -101,6 +108,12 @@ router.get(
 router.get(
     "/recent-transactions",
     authenticateToken,
+    requireRole(
+        "Administrator",
+        "Clinic Manager",
+        "Inventory Staff",
+        "Veterinarian"
+    ),
     async (req, res) => {
         try {
             const { data: items, error: itemError } = await supabase
@@ -121,15 +134,24 @@ router.get(
                 });
             }
 
-            const { data, error } = await supabase
+            let transactionQuery = supabase
                 .from("stock_transactions")
                 .select(`
-                    *,
-                    inventory_items (
-                        item_name
-                    )
-                `)
-                .in("item_id", itemIds)
+        *,
+        inventory_items (
+            item_name
+        )
+    `)
+                .in("item_id", itemIds);
+
+            // Veterinarians can only view their own Stock OUT transactions.
+            if (req.user.role === "Veterinarian") {
+                transactionQuery = transactionQuery
+                    .eq("user_id", req.user.user_id)
+                    .eq("transaction_type", "OUT");
+            }
+
+            const { data, error } = await transactionQuery
                 .order("created_at", {
                     ascending: false
                 })
@@ -163,6 +185,11 @@ router.get(
 router.get(
     "/health-summary",
     authenticateToken,
+    requireRole(
+        "Administrator",
+        "Clinic Manager",
+        "Veterinarian"
+    ),
     async (req, res) => {
         try {
             // Get patients for this clinic
@@ -244,6 +271,12 @@ router.get(
 router.get(
     "/expiring",
     authenticateToken,
+    requireRole(
+        "Administrator",
+        "Clinic Manager",
+        "Inventory Staff",
+        "Veterinarian"
+    ),
     async (req, res) => {
         try {
             const days = Number(req.query.days) || 90;

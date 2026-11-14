@@ -2,10 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './Patient.css';
 import Notification from '../components/Notification';
 
-
-
-
-
 // Get today's date using Asia/Manila timezone
 function getTodayManilaDate() {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -62,6 +58,55 @@ export default function Patient() {
   const [submitting, setSubmitting] = useState(false);
   const [editingPatient, setEditingPatient] = useState(null);
   const token = localStorage.getItem('token');
+
+  // Current logged-in user's role
+  const [userRole, setUserRole] = useState('');
+  const [userRoleLoading, setUserRoleLoading] = useState(true);
+
+  // Patient permissions
+  const canAddPatient =
+    ['Administrator', 'Veterinarian'].includes(userRole);
+
+  const canEditPatient =
+    ['Administrator', 'Veterinarian'].includes(userRole);
+
+  const canDeletePatient =
+    userRole === 'Administrator';
+
+  // Appointment status management
+  const canUpdateAppointmentStatus =
+    ['Administrator', 'Veterinarian'].includes(userRole);
+
+  // Fetch current user's role
+  const fetchUserRole = useCallback(async () => {
+    try {
+      const response = await fetch(
+        'http://localhost:3001/api/auth/me',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || 'Unable to retrieve user role.'
+        );
+      }
+
+      setUserRole(data.data?.role || '');
+
+    } catch (error) {
+      console.error('Fetch user role error:', error);
+      setUserRole('');
+
+    } finally {
+      setUserRoleLoading(false);
+    }
+  }, [token]);
 
   // 1. Fetch Patients from the backend Backend/Supabase
   const fetchPatients = useCallback(async () => {
@@ -126,9 +171,22 @@ export default function Patient() {
 
   // Fetch patients when the component loads
   useEffect(() => {
+    fetchUserRole();
     fetchPatients();
-    fetchVeterinarians();
-  }, [fetchPatients, fetchVeterinarians]);
+  }, [
+    fetchUserRole,
+    fetchPatients
+  ]);
+
+  useEffect(() => {
+    if (!userRoleLoading && canAddPatient) {
+      fetchVeterinarians();
+    }
+  }, [
+    userRoleLoading,
+    canAddPatient,
+    fetchVeterinarians
+  ]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -154,6 +212,8 @@ export default function Patient() {
 
   // Open the modal for adding a patient
   const openAddModal = () => {
+    if (!canAddPatient) return;
+
     setEditingPatient(null);
     resetPatientForm();
     setShowModal(true);
@@ -161,6 +221,7 @@ export default function Patient() {
 
   // Open the modal for editing an existing patient
   const openEditModal = (pat) => {
+    if (!canEditPatient) return;
     setEditingPatient(pat);
 
     setPatientName(pat.patient_name || '');
@@ -191,6 +252,14 @@ export default function Patient() {
   // Save a new patient or update an existing patient
   const handleSavePatient = async (e) => {
     e.preventDefault();
+
+    if (editingPatient ? !canEditPatient : !canAddPatient) {
+      showNotification(
+        'You do not have permission to modify patient information.',
+        'error'
+      );
+      return;
+    }
 
     if (
       !patientName.trim() ||
@@ -271,6 +340,7 @@ export default function Patient() {
   // Update appointment status to Completed or Cancelled
 
   const handleUpdateAppointmentStatus = (pat, newStatus) => {
+    if (!canUpdateAppointmentStatus) return;
     if (!pat.appointment_date) {
       showNotification(
         'This patient has no appointment to update.',
@@ -284,6 +354,7 @@ export default function Patient() {
       message: `Are you sure you want to mark ${pat.patient_name}'s appointment as ${newStatus}?`,
       confirmText: `Mark as ${newStatus}`,
       variant: 'default',
+      permission: 'appointment',
 
       onConfirm: async () => {
         try {
@@ -333,11 +404,13 @@ export default function Patient() {
   // Delete (deactivate) a patient after confirmation
 
   const handleDeletePatient = (pat) => {
+    if (!canDeletePatient) return;
     setConfirmation({
       title: 'Delete Patient?',
       message: `Are you sure you want to delete ${pat.patient_name}? This patient will be removed from the active patient list, but their historical records will be preserved.`,
       confirmText: 'Delete Patient',
       variant: 'danger',
+      permission: 'delete',
 
       onConfirm: async () => {
         try {
@@ -385,6 +458,22 @@ export default function Patient() {
 
   const handleConfirmAction = async () => {
     if (!confirmation || confirming) return;
+
+    const hasPermission =
+      confirmation.permission === 'delete'
+        ? canDeletePatient
+        : confirmation.permission === 'appointment'
+          ? canUpdateAppointmentStatus
+          : false;
+
+    if (!hasPermission) {
+      setConfirmation(null);
+      showNotification(
+        'You do not have permission to perform this action.',
+        'error'
+      );
+      return;
+    }
 
     setConfirming(true);
 
@@ -514,9 +603,11 @@ export default function Patient() {
           <h2>Patients & Appointments</h2>
           <p>Manage veterinary patients, species records, and upcoming schedules in real-time.</p>
         </div>
-        <button className="add-btn" onClick={openAddModal}>
-          <i className="fa-solid fa-paw"></i> Add Patient
-        </button>
+        {!userRoleLoading && canAddPatient && (
+          <button className="add-btn" onClick={openAddModal}>
+            <i className="fa-solid fa-paw"></i> Add Patient
+          </button>
+        )}
       </div>
 
 
@@ -666,63 +757,69 @@ export default function Patient() {
                       }}
                     >
                       {/* Complete */}
-                      {pat.appointment_date && status === 'Scheduled' && (
-                        <button
-                          type="button"
-                          className="patient-action-btn complete"
-                          title="Complete Appointment"
-                          aria-label="Complete Appointment"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUpdateAppointmentStatus(pat, 'Completed');
-                          }}
-                        >
-                          <i className="fa-solid fa-check"></i>
-                        </button>
-                      )}
+                      {canUpdateAppointmentStatus && pat.appointment_date &&
+                        status === 'Scheduled' && (
+                          <button
+                            type="button"
+                            className="patient-action-btn complete"
+                            title="Complete Appointment"
+                            aria-label="Complete Appointment"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUpdateAppointmentStatus(pat, 'Completed');
+                            }}
+                          >
+                            <i className="fa-solid fa-check"></i>
+                          </button>
+                        )}
 
                       {/* Cancel */}
-                      {pat.appointment_date && status === 'Scheduled' && (
+                      {canUpdateAppointmentStatus && pat.appointment_date &&
+                        status === 'Scheduled' && (
+                          <button
+                            type="button"
+                            className="patient-action-btn cancel"
+                            title="Cancel Appointment"
+                            aria-label="Cancel Appointment"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUpdateAppointmentStatus(pat, 'Cancelled');
+                            }}
+                          >
+                            <i className="fa-solid fa-xmark"></i>
+                          </button>
+                        )}
+                      {/* Edit */}
+                      {canEditPatient && (
                         <button
                           type="button"
-                          className="patient-action-btn cancel"
-                          title="Cancel Appointment"
-                          aria-label="Cancel Appointment"
+                          className="patient-action-btn edit"
+                          title="Edit Patient"
+                          aria-label="Edit Patient"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleUpdateAppointmentStatus(pat, 'Cancelled');
+                            openEditModal(pat);
                           }}
                         >
-                          <i className="fa-solid fa-xmark"></i>
+                          <i className="fa-solid fa-pen"></i>
                         </button>
                       )}
-                      {/* Edit */}
-                      <button
-                        type="button"
-                        className="patient-action-btn edit"
-                        title="Edit Patient"
-                        aria-label="Edit Patient"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditModal(pat);
-                        }}
-                      >
-                        <i className="fa-solid fa-pen"></i>
-                      </button>
 
                       {/* Delete */}
-                      <button
-                        type="button"
-                        title="Delete Patient"
-                        aria-label="Delete Patient"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeletePatient(pat);
-                        }}
-                        className="delete-patient-btn"
-                      >
-                        <i className="fa-solid fa-trash"></i>
-                      </button>
+                      {canDeletePatient && (
+                        <button
+                          type="button"
+                          title="Delete Patient"
+                          aria-label="Delete Patient"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeletePatient(pat);
+                          }}
+                          className="delete-patient-btn"
+                        >
+                          <i className="fa-solid fa-trash"></i>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -783,7 +880,7 @@ export default function Patient() {
                           >
 
                             {/* Complete */}
-                            {pat.appointment_date && status === 'Scheduled' && (
+                            {canUpdateAppointmentStatus && pat.appointment_date && status === 'Scheduled' && (
                               <button
                                 type="button"
                                 className="patient-action-btn complete"
@@ -799,7 +896,7 @@ export default function Patient() {
                             )}
 
                             {/* Cancel */}
-                            {pat.appointment_date && status === 'Scheduled' && (
+                            {canUpdateAppointmentStatus && pat.appointment_date && status === 'Scheduled' && (
                               <button
                                 type="button"
                                 className="patient-action-btn cancel"
@@ -814,32 +911,37 @@ export default function Patient() {
                               </button>
                             )}
                             {/* Edit */}
-                            <button
-                              type="button"
-                              className="patient-action-btn edit"
-                              title="Edit Patient"
-                              aria-label="Edit Patient"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditModal(pat);
-                              }}
-                            >
-                              <i className="fa-solid fa-pen"></i>
-                            </button>
+
+                            {canEditPatient && (
+                              <button
+                                type="button"
+                                className="patient-action-btn edit"
+                                title="Edit Patient"
+                                aria-label="Edit Patient"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditModal(pat);
+                                }}
+                              >
+                                <i className="fa-solid fa-pen"></i>
+                              </button>
+                            )}
 
                             {/* Delete */}
-                            <button
-                              type="button"
-                              title="Delete Patient"
-                              aria-label="Delete Patient"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeletePatient(pat);
-                              }}
-                              className="delete-patient-btn"
-                            >
-                              <i className="fa-solid fa-trash"></i>
-                            </button>
+                            {canDeletePatient && (
+                              <button
+                                type="button"
+                                title="Delete Patient"
+                                aria-label="Delete Patient"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeletePatient(pat);
+                                }}
+                                className="delete-patient-btn"
+                              >
+                                <i className="fa-solid fa-trash"></i>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -916,14 +1018,14 @@ export default function Patient() {
 
       {/* Modal for Add Patient */}
       {
-        showModal && (
+        showModal && (canAddPatient || (editingPatient && canEditPatient)) && (
           <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
             <div className="modal-content" style={{ background: '#fff', padding: '24px', borderRadius: '8px', width: '500px', maxWidth: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
               <div
                 className="modal-header"
                 style={{
                   display: 'flex',
-                  justifyContent: 'center',
+                  justifyContent: 'flex-end',
                   alignItems: 'center',
                   position: 'relative',
                   width: '100%',
@@ -931,12 +1033,35 @@ export default function Patient() {
                   marginBottom: '20px'
                 }}
               >
-                <h3 style={{ margin: 0 }}>
+                <h3
+                  style={{
+                    position: 'absolute',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    margin: 0,
+                    textAlign: 'center',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
                   {editingPatient
                     ? 'Edit Patient & Appointment'
                     : 'Add New Patient & Appointment'}
                 </h3>
-                <button className="close-btn" onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>&times;</button>
+
+                <button
+                  type="button"
+                  className="close-btn"
+                  onClick={() => setShowModal(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '20px',
+                    cursor: 'pointer',
+                    flexShrink: 0
+                  }}
+                >
+                  &times;
+                </button>
               </div>
               <form onSubmit={handleSavePatient}>
                 <div className="form-group" style={{ marginBottom: '12px' }}>
@@ -1433,24 +1558,26 @@ export default function Patient() {
                   marginTop: '24px'
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => {
-                    const patient = selectedPatient;
-                    setSelectedPatient(null);
-                    openEditModal(patient);
-                  }}
-                  style={{
-                    padding: '9px 16px',
-                    background: '#0d9488',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <i className="fa-solid fa-pen"></i> Edit Patient
-                </button>
+                {canEditPatient && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const patient = selectedPatient;
+                      setSelectedPatient(null);
+                      openEditModal(patient);
+                    }}
+                    style={{
+                      padding: '9px 16px',
+                      background: '#0d9488',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <i className="fa-solid fa-pen"></i> Edit Patient
+                  </button>
+                )}
 
                 <button
                   type="button"

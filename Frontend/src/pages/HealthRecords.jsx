@@ -8,6 +8,25 @@ export default function HealthRecords() {
   const [patientsLoading, setPatientsLoading] = useState(false);
   const [patientsError, setPatientsError] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const [userRole, setUserRole] = useState('');
+  const [roleLoading, setRoleLoading] = useState(true);
+
+  const canViewPage = [
+    'Administrator',
+    'Clinic Manager',
+    'Veterinarian'
+  ].includes(userRole);
+
+  const canManageRecords = [
+    'Administrator',
+    'Veterinarian'
+  ].includes(userRole);
+
+  const canDeleteRecords = userRole === 'Administrator';
+
+
+
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -25,8 +44,6 @@ export default function HealthRecords() {
   // Pagination states
   const [pageSize, setPageSize] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
-
-
 
   // Modal State para sa Add Record
   const [showModal, setShowModal] = useState(false);
@@ -51,6 +68,35 @@ export default function HealthRecords() {
   const [followUpSubmitting, setFollowUpSubmitting] = useState(false);
 
   const token = localStorage.getItem('token');
+
+  // Fetch logged-in user's role for RBAC
+  const fetchUserRole = useCallback(async () => {
+    try {
+      const response = await fetch(
+        'http://localhost:3001/api/auth/me',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to verify user role.');
+      }
+
+      const user = data.user || data.data?.user || data.data || data;
+
+      setUserRole(user.role || user.role_name || '');
+    } catch (err) {
+      console.error('Error fetching user role:', err);
+      setUserRole('');
+    } finally {
+      setRoleLoading(false);
+    }
+  }, [token]);
 
   // 1. Fetch Health Records from Backend/Supabase
   const fetchHealthRecords = useCallback(async () => {
@@ -151,6 +197,14 @@ export default function HealthRecords() {
   const handleAddFollowUp = async (e) => {
     e.preventDefault();
 
+    if (!canManageRecords) {
+      showNotification(
+        'You do not have permission to manage follow-up appointments.',
+        'error'
+      );
+      return;
+    }
+
     if (!newFollowUpDate) {
       showNotification('Please select a follow-up date.', 'error');
       return;
@@ -194,12 +248,24 @@ export default function HealthRecords() {
         err.message || 'Unable to schedule follow-up appointment.',
         'error'
       );
+    } finally {
+      // Reset the scheduling button after success or failure
+      setFollowUpSubmitting(false);
     }
   };
 
 
+
   // Update the status of an existing follow-up appointment
   const handleUpdateFollowUpStatus = async (followupId, status) => {
+    if (!canManageRecords) {
+      showNotification(
+        'You do not have permission to manage follow-up appointments.',
+        'error'
+      );
+      return;
+    }
+
     try {
       const response = await fetch(
         `http://localhost:3001/api/health-records/${viewingRecord.record_id}/followups/${followupId}`,
@@ -231,11 +297,28 @@ export default function HealthRecords() {
     }
   };
 
-  // Fetch both when the component loads
+  // Fetch data after verifying the user's role
   useEffect(() => {
-    fetchHealthRecords();
-    fetchPatients();
-  }, [fetchHealthRecords, fetchPatients]);
+    fetchUserRole();
+  }, [fetchUserRole]);
+
+  useEffect(() => {
+    if (roleLoading) return;
+
+    if (canViewPage) {
+      fetchHealthRecords();
+    }
+
+    if (canManageRecords) {
+      fetchPatients();
+    }
+  }, [
+    roleLoading,
+    canViewPage,
+    canManageRecords,
+    fetchHealthRecords,
+    fetchPatients
+  ]);
 
   // Fetch follow-up appointments when viewing a health record
   useEffect(() => {
@@ -252,6 +335,10 @@ export default function HealthRecords() {
 
   // 2. Handle Submit para sa Bagong Health Record
   const handleSaveRecord = async (e) => {
+    if (!canManageRecords) {
+      showNotification('You do not have permission to manage health records.', 'error');
+      return;
+    }
     e.preventDefault();
 
     if (!patientId) {
@@ -323,11 +410,15 @@ export default function HealthRecords() {
   };
 
   const openAddModal = () => {
+    if (!canManageRecords) return;
+
     closeRecordModal();
     setShowModal(true);
   };
 
   const openEditModal = (rec) => {
+    if (!canManageRecords) return;
+
     setEditingRecord(rec);
     setPatientId(rec.patient_id || '');
     setDiagnosis(rec.diagnosis || '');
@@ -347,6 +438,11 @@ export default function HealthRecords() {
   };
 
   const handleDeleteRecord = async (recordId) => {
+    if (!canDeleteRecords) {
+      showNotification('You do not have permission to delete health records.', 'error');
+      return;
+    }
+
     setConfirmation({
       message: 'Are you sure you want to delete this health record? This action cannot be undone.',
       onConfirm: async () => {
@@ -389,28 +485,46 @@ export default function HealthRecords() {
     });
   };
 
-  const getFollowUpStatus = (date) => {
+
+  const getFollowUpStatus = (date, appointmentStatus) => {
+    const status = appointmentStatus?.toLowerCase();
+
+    // Preserve the actual appointment status.
+    if (status === 'completed') return 'Completed';
+    if (status === 'missed') return 'Missed';
+    if (status === 'cancelled') return 'Cancelled';
+
     if (!date) return 'Not Scheduled';
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Compare dates using the clinic's Manila timezone.
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
 
-    const followUp = new Date(`${date.substring(0, 10)}T00:00:00`);
+    const followUpDate = date.substring(0, 10);
 
-    if (followUp < today) return 'Overdue';
+    if (followUpDate < today) return 'Overdue';
 
     return 'Upcoming';
   };
 
+
+
   const followUpCounts = records.reduce(
     (counts, record) => {
-      const status = getFollowUpStatus(record.follow_up_date);
+      const status = getFollowUpStatus(
+        record.follow_up_date,
+        record.follow_up_status
+      );
 
       if (status === 'Upcoming') {
         counts.upcoming++;
       } else if (status === 'Overdue') {
         counts.overdue++;
-      } else {
+      } else if (status === 'Not Scheduled') {
         counts.notScheduled++;
       }
 
@@ -422,6 +536,7 @@ export default function HealthRecords() {
       notScheduled: 0
     }
   );
+
 
   const filteredRecords = records.filter(rec => {
     const recordId = rec.record_id || ''; const mrn = rec.mrn_number
@@ -454,6 +569,23 @@ export default function HealthRecords() {
     setCurrentPage(1);
   }, [searchTerm, pageSize]);
 
+  if (roleLoading) {
+    return (
+      <div className="health-records-page">
+        <p>Verifying access...</p>
+      </div>
+    );
+  }
+
+  if (!canViewPage) {
+    return (
+      <div className="health-records-page">
+        <h2>Access Denied</h2>
+        <p>You do not have permission to access Health Records.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="health-records-page">
       {/* CUSTOM NOTIFICATION */}
@@ -470,9 +602,11 @@ export default function HealthRecords() {
           <h2>Health Records</h2>
           <p>Manage patient health records, diagnoses, and treatments efficiently in real-time.</p>
         </div>
-        <button className="add-btn" onClick={openAddModal}>
-          <i className="fa-solid fa-plus"></i> Add Record
-        </button>
+        {canManageRecords && (
+          <button className="add-btn" onClick={openAddModal}>
+            <i className="fa-solid fa-plus"></i> Add Record
+          </button>
+        )}
       </div>
 
 
@@ -579,7 +713,10 @@ export default function HealthRecords() {
                   const symptomsDisplay = Array.isArray(rec.symptoms)
                     ? rec.symptoms.join(', ')
                     : (rec.symptoms || 'N/A');
-                  const followUpStatus = getFollowUpStatus(rec.follow_up_date);
+                  const followUpStatus = getFollowUpStatus(
+                    rec.follow_up_date,
+                    rec.follow_up_status
+                  );
 
                   const formattedFollowUpDate = rec.follow_up_date
                     ? new Date(`${rec.follow_up_date.substring(0, 10)}T00:00:00`)
@@ -623,10 +760,16 @@ export default function HealthRecords() {
                       <td>
                         <div>{formattedFollowUpDate}</div>
                         <span className={`follow-up-status ${followUpStatus === 'Overdue'
-                          ? 'overdue'
-                          : followUpStatus === 'Upcoming'
-                            ? 'upcoming'
-                            : 'not-scheduled'
+                            ? 'overdue'
+                            : followUpStatus === 'Upcoming'
+                              ? 'upcoming'
+                              : followUpStatus === 'Completed'
+                                ? 'completed'
+                                : followUpStatus === 'Missed'
+                                  ? 'missed'
+                                  : followUpStatus === 'Cancelled'
+                                    ? 'cancelled'
+                                    : 'not-scheduled'
                           }`}>
                           {followUpStatus}
                         </span>
@@ -637,23 +780,27 @@ export default function HealthRecords() {
                           className="hr-actions"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <button
-                            type="button"
-                            className="edit-patient-btn"
-                            onClick={() => openEditModal(rec)}
-                            title="Edit Health Record"
-                          >
-                            <i className="fa-solid fa-pen"></i>
-                          </button>
+                          {canManageRecords && (
+                            <button
+                              type="button"
+                              className="edit-patient-btn"
+                              onClick={() => openEditModal(rec)}
+                              title="Edit Health Record"
+                            >
+                              <i className="fa-solid fa-pen"></i>
+                            </button>
+                          )}
 
-                          <button
-                            type="button"
-                            className="delete-patient-btn"
-                            onClick={() => handleDeleteRecord(rec.record_id)}
-                            title="Delete Health Record"
-                          >
-                            <i className="fa-solid fa-trash"></i>
-                          </button>
+                          {canDeleteRecords && (
+                            <button
+                              type="button"
+                              className="delete-patient-btn"
+                              onClick={() => handleDeleteRecord(rec.record_id)}
+                              title="Delete Health Record"
+                            >
+                              <i className="fa-solid fa-trash"></i>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1051,7 +1198,10 @@ export default function HealthRecords() {
                 },
                 {
                   label: 'Follow-up Status',
-                  value: getFollowUpStatus(viewingRecord.follow_up_date)
+                  value: getFollowUpStatus(
+                    viewingRecord.follow_up_date,
+                    viewingRecord.follow_up_status
+                  )
                 },
                 {
                   label: 'Additional Notes',
@@ -1163,22 +1313,27 @@ export default function HealthRecords() {
                   Follow-up Appointment History
                 </h3>
 
-                <button
-                  type="button"
-                  onClick={() => setShowFollowUpForm(!showFollowUpForm)}
-                  disabled={viewingRecord.status === 'recovered' ||
-                    viewingRecord.status === 'cancelled'}
-                  style={{
-                    padding: '8px 12px',
-                    background: '#0d9488',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  + Schedule Follow-up
-                </button>
+
+                {canManageRecords && (
+                  <button
+                    type="button"
+                    onClick={() => setShowFollowUpForm(!showFollowUpForm)}
+                    disabled={
+                      viewingRecord.status === 'recovered' ||
+                      viewingRecord.status === 'cancelled'
+                    }
+                    style={{
+                      padding: '8px 12px',
+                      background: '#0d9488',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    + Schedule Follow-up
+                  </button>
+                )}
               </div>
 
               {followUpsLoading ? (
@@ -1258,7 +1413,7 @@ export default function HealthRecords() {
                       </p>
                     )}
 
-                    {appointment.status === 'scheduled' && (
+                    {canManageRecords && appointment.status === 'scheduled' && (
                       <div className="followup-action-buttons">
                         <button
                           type="button"
@@ -1302,7 +1457,7 @@ export default function HealthRecords() {
               )}
 
               {/* NEW FOLLOW-UP FORM */}
-              {showFollowUpForm && (
+              {canManageRecords && showFollowUpForm && (
                 <form
                   onSubmit={handleAddFollowUp}
                   style={{
@@ -1419,24 +1574,26 @@ export default function HealthRecords() {
                 marginTop: '24px'
               }}
             >
-              <button
-                type="button"
-                onClick={() => {
-                  const record = viewingRecord;
-                  setViewingRecord(null);
-                  openEditModal(record);
-                }}
-                style={{
-                  padding: '9px 16px',
-                  background: '#0d9488',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer'
-                }}
-              >
-                <i className="fa-solid fa-pen"></i> Edit Record
-              </button>
+              {canManageRecords && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const record = viewingRecord;
+                    setViewingRecord(null);
+                    openEditModal(record);
+                  }}
+                  style={{
+                    padding: '9px 16px',
+                    background: '#0d9488',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <i className="fa-solid fa-pen"></i> Edit Record
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1453,7 +1610,6 @@ export default function HealthRecords() {
                 Close
               </button>
             </div>
-
           </div>
         </div>
       )}

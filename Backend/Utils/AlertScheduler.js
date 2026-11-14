@@ -171,10 +171,27 @@ async function checkInventoryAlerts(clinicId, existingAlerts, today) {
                 expiration_date
             )
         `)
-        .eq("clinic_id", clinicId);
+        .eq("clinic_id", clinicId)
+        .eq("is_active", true);
 
     if (error) {
         throw error;
+    }
+
+    // Resolve alerts belonging to inactive or deleted inventory items.
+    const activeItemIds = new Set(
+        (inventory || []).map(item => item.item_id)
+    );
+
+    for (const alert of existingAlerts) {
+        if (
+            ["LOW_STOCK", "EXPIRATION"].includes(alert.alert_type) &&
+            alert.status === "active" &&
+            alert.item_id &&
+            !activeItemIds.has(alert.item_id)
+        ) {
+            await resolveAlert(alert);
+        }
     }
 
     const thirtyDaysFromNow = addDays(today, 30);
@@ -200,7 +217,7 @@ async function checkInventoryAlerts(clinicId, existingAlerts, today) {
             alert.alert_type === "LOW_STOCK"
         );
 
-        if (totalQuantity <= minimumStock) {
+        if (minimumStock > 0 && totalQuantity <= minimumStock) {
             await saveAlert(existingAlerts, {
                 clinic_id: clinicId,
                 item_id: item.item_id,

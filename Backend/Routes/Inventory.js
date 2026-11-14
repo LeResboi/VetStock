@@ -222,6 +222,42 @@ router.post(
                 });
             }
 
+
+            // =====================================================
+            // CREATE NEW BATCH ALERT
+            // =====================================================
+
+            let batchAlertWarning = null;
+
+            const { error: batchAlertError } = await supabase
+                .from("alerts")
+                .insert({
+                    clinic_id: req.user.clinic_id,
+                    item_id: item.item_id,
+                    patient_id: null,
+                    alert_type: "NEW_BATCH_CREATED",
+                    severity: "low",
+                    message:
+                        `New batch ${batch.batch_number} of ${item.item_name} ` +
+                        `was created with ${Number(batch.quantity) || 0} units.`,
+                    current_stock: Number(batch.quantity) || 0,
+                    threshold: null,
+                    status: "active",
+                    is_read: false,
+                    read_at: null
+                });
+
+            if (batchAlertError) {
+                console.error(
+                    "New batch alert error:",
+                    batchAlertError
+                );
+
+                batchAlertWarning =
+                    "The inventory item and batch were created, but the notification could not be saved.";
+            }
+
+
             // =====================================================
             // CREATE AUDIT LOG
             // =====================================================
@@ -242,8 +278,9 @@ router.post(
 
             res.status(201).json({
                 success: true,
-                message:
+                message: batchAlertWarning ||
                     "Inventory item created successfully.",
+                warning: batchAlertWarning,
                 data: {
                     item,
                     batch
