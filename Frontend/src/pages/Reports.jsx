@@ -1,13 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './Reports.css';
 
 export default function Reports() {
-  const [reportType, setReportType] = useState(null); 
+  const [reportType, setReportType] = useState(null);
   const [reportData, setReportData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const [userRole, setUserRole] = useState('');
+  const [roleLoading, setRoleLoading] = useState(true);
+
+  const canGenerateHealthReport = [
+    'Administrator',
+    'Clinic Manager',
+    'Veterinarian'
+  ].includes(userRole);
+
   const token = localStorage.getItem('token');
+
+  // Fetch logged-in user's role for Reports RBAC
+  const fetchUserRole = useCallback(async () => {
+    try {
+      const response = await fetch(
+        'http://localhost:3001/api/auth/me',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to verify user role.');
+      }
+
+      const user = data.user || data.data?.user || data.data || data;
+
+      setUserRole(user.role || user.role_name || '');
+    } catch (err) {
+      console.error('Error fetching user role:', err);
+      setUserRole('');
+    } finally {
+      setRoleLoading(false);
+    }
+  }, [token]);
+
+  // Verify role when Reports page loads
+  useEffect(() => {
+    fetchUserRole();
+  }, [fetchUserRole]);
 
   const handleGenerateReport = async (type) => {
     setReportType(type);
@@ -40,6 +83,14 @@ export default function Reports() {
       setLoading(false);
     }
   };
+  
+  if (roleLoading) {
+    return (
+      <div className="reports-page" style={{ padding: '24px' }}>
+        <p>Verifying access...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="reports-page" style={{ padding: '24px' }}>
@@ -52,13 +103,13 @@ export default function Reports() {
       {!reportType ? (
         /* Report Selection Cards / List */
         <div className="reports-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-          
+
           {/* Inventory Report Card */}
           <div className="report-card" style={{ background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderTop: '4px solid #0d9488' }}>
             <h3>Inventory Report</h3>
             <p style={{ color: '#64748b', fontSize: '14px', margin: '12px 0' }}>View current inventory levels and stock status.</p>
-            <button 
-              className="generate-btn" 
+            <button
+              className="generate-btn"
               onClick={() => handleGenerateReport('inventory')}
               style={{ background: '#0d9488', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500' }}
             >
@@ -70,8 +121,8 @@ export default function Reports() {
           <div className="report-card" style={{ background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderTop: '4px solid #0d9488' }}>
             <h3>Transaction Report</h3>
             <p style={{ color: '#64748b', fontSize: '14px', margin: '12px 0' }}>View stock in and stock out transactions.</p>
-            <button 
-              className="generate-btn" 
+            <button
+              className="generate-btn"
               onClick={() => handleGenerateReport('transactions')}
               style={{ background: '#0d9488', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500' }}
             >
@@ -80,24 +131,29 @@ export default function Reports() {
           </div>
 
           {/* Patient Health Report Card */}
-          <div className="report-card" style={{ background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderTop: '4px solid #0d9488' }}>
-            <h3>Patient Health Report</h3>
-            <p style={{ color: '#64748b', fontSize: '14px', margin: '12px 0' }}>View patient health records and medical history.</p>
-            <button 
-              className="generate-btn" 
-              onClick={() => handleGenerateReport('health')}
-              style={{ background: '#0d9488', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500' }}
-            >
-              Generate
-            </button>
-          </div>
+          {canGenerateHealthReport && (
+            <>
+              {/* Patient Health Report Card */}
+              <div className="report-card" style={{ background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderTop: '4px solid #0d9488' }}>
+                <h3>Patient Health Report</h3>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: '12px 0' }}>View patient health records and medical history.</p>
+                <button
+                  className="generate-btn"
+                  onClick={() => handleGenerateReport('health')}
+                  style={{ background: '#0d9488', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500' }}
+                >
+                  Generate
+                </button>
+              </div>
+            </>
+          )}
 
           {/* Expiry Report Card */}
           <div className="report-card" style={{ background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderTop: '4px solid #0d9488' }}>
             <h3>Expiry Report</h3>
             <p style={{ color: '#64748b', fontSize: '14px', margin: '12px 0' }}>View medicines that are nearing expiration.</p>
-            <button 
-              className="generate-btn" 
+            <button
+              className="generate-btn"
               onClick={() => handleGenerateReport('expiry')}
               style={{ background: '#0d9488', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500' }}
             >
@@ -110,7 +166,7 @@ export default function Reports() {
         <div className="report-result-container" style={{ background: '#fff', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h3 style={{ textTransform: 'capitalize', margin: 0 }}>{reportType} Report Results</h3>
-            <button 
+            <button
               onClick={() => setReportType(null)}
               style={{ background: '#e2e8f0', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500' }}
             >

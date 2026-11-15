@@ -23,10 +23,8 @@ export default function Forecast() {
       return 'Insufficient data';
     }
 
-    return Number(value).toFixed(2);
+    return Number(value).toFixed(2).replace(/\.?0+$/, '');
   };
-
-
 
   const fetchAiForecast = useCallback(async (refresh = false) => {
     setLoading(true);
@@ -278,8 +276,6 @@ export default function Forecast() {
                 )}
               </div>
             )}
-
-
 
             <div className="forecast-numeric-section">
               <h3>30-Day Demand Forecast</h3>

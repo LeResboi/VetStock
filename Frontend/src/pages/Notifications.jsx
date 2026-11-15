@@ -66,6 +66,8 @@ export default function Notifications() {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
 
+  const [resolvingId, setResolvingId] = useState(null);
+
   const audioRef = useRef(null);
 
   // Store previously received alert information.
@@ -391,6 +393,55 @@ export default function Notifications() {
   });
 
   // ============================================================
+  // RESOLVE ALERT
+  // ============================================================
+
+  const handleResolveAlert = async (id) => {
+    if (!window.confirm('Are you sure you want to resolve this alert?')) {
+      return;
+    }
+
+    try {
+      setResolvingId(id);
+
+      const response = await fetch(
+        `http://localhost:3001/api/alerts/${id}/resolve`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            resolution_notes: null
+          })
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to resolve alert.');
+      }
+
+      setToastMessage('Alert resolved successfully.');
+      setToastType('success');
+
+      // Reload active alerts so the resolved alert disappears.
+      await fetchAlerts();
+
+    } catch (err) {
+      console.error('Error resolving alert:', err);
+
+      setToastMessage(err.message || 'Unable to resolve alert.');
+      setToastType('error');
+
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
+  // ============================================================
   // NOTIFICATION COUNTS
   // ============================================================
 
@@ -413,10 +464,6 @@ export default function Notifications() {
   const appointmentCount = notifications.filter(
     notif => notif.category === 'appointment'
   ).length;
-
-  // ============================================================
-  // RENDER
-  // ============================================================
 
   return (
     <div className="notifications-page">
@@ -577,12 +624,39 @@ export default function Notifications() {
 
               </div>
 
-              <div className="notif-action-indicator">
+              <div
+                className="notif-action-indicator"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}
+              >
                 {!notif.read && (
                   <span className="unread-dot" title="Unread"></span>
                 )}
-              </div>
 
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleResolveAlert(notif.id);
+                  }}
+                  disabled={resolvingId !== null}
+                  style={{
+                    padding: '6px 10px',
+                    backgroundColor: '#dcfce7',
+                    color: '#166534',
+                    border: 'none',
+                    borderRadius: '5px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: resolvingId !== null ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {resolvingId === notif.id ? 'Resolving...' : 'Resolve'}
+                </button>
+              </div>
             </div>
 
           ))

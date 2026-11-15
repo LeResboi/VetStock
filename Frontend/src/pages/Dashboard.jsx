@@ -6,6 +6,7 @@ export default function Dashboard({ showPage }) {
     const [transactions, setTransactions] = useState([]);
     const [alerts, setAlerts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
 
     async function loadDashboardData() {
         try {
@@ -72,6 +73,21 @@ export default function Dashboard({ showPage }) {
         return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
     }
 
+    const filteredInventory = inventory.filter(item => {
+        const search = searchTerm.trim().toLowerCase();
+
+        if (!search) return false;
+
+        return (
+            String(item.item_name || item.name || '')
+                .toLowerCase()
+                .includes(search) ||
+            String(item.category || '')
+                .toLowerCase()
+                .includes(search)
+        );
+    });
+
     const totalItems = inventory.length;
     const stockInThisMonth = transactions.filter(t => String(t.transaction_type || "").toUpperCase() === "IN" && isThisMonth(t.created_at)).length;
     const stockOutThisMonth = transactions.filter(t => String(t.transaction_type || "").toUpperCase() === "OUT" && isThisMonth(t.created_at)).length;
@@ -105,12 +121,56 @@ export default function Dashboard({ showPage }) {
 
                     <div className="dashboard-search-bar">
                         <div>
-                            <h4 style={{ fontSize: "18px", fontWeight: "700", color: "var(--text)" }}>Welcome Back!, {userName}! </h4>
-                            <p style={{ fontSize: "12px", color: "var(--muted)" }}>Here is your inventory overview for this month.</p>
+                            <h4 style={{
+                                fontSize: "18px",
+                                fontWeight: "700",
+                                color: "var(--text)"
+                            }}>
+                                Welcome Back!, {userName}!
+                            </h4>
+
+                            <p style={{
+                                fontSize: "12px",
+                                color: "var(--muted)"
+                            }}>
+                                Here is your inventory overview for this month.
+                            </p>
                         </div>
+
                         <div className="dashboard-search-input-wrapper">
                             <i className="fa-solid fa-magnifying-glass"></i>
-                            <input type="text" placeholder="Search items or medicine..." />
+
+                            <input
+                                type="text"
+                                placeholder="Search items or medicine..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+
+                            {searchTerm.trim() !== '' && (
+                                <div className="dashboard-search-results">
+                                    {filteredInventory.length > 0 ? (
+                                        filteredInventory.map((item, index) => (
+                                            <div
+                                                key={item.item_id || item.id || index}
+                                                className="dashboard-search-result"
+                                            >
+                                                <strong>
+                                                    {item.item_name || item.name}
+                                                </strong>
+
+                                                <span>
+                                                    Stock: {item.quantity ?? 0}
+                                                </span>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="dashboard-search-empty">
+                                            No matching inventory found.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -170,19 +230,19 @@ export default function Dashboard({ showPage }) {
                         <div className="action-buttons-grid">
                             <button onClick={() => showPage && showPage("Inventory")} className="action-tile">
                                 <i className="fa-solid fa-boxes-stacked" style={{ fontSize: "16px", marginBottom: "6px" }}></i>
-                                <span style={{ fontSize: "11px", fontWeight: "600" }}>View Inventory</span>
+                                <span style={{ fontSize: "11px", fontWeight: "600", color: "#ffffff" }}>View Inventory</span>
                             </button>
                             <button onClick={() => showPage && showPage("Transactions")} className="action-tile dark">
                                 <i className="fa-solid fa-right-left" style={{ fontSize: "16px", marginBottom: "6px" }}></i>
-                                <span style={{ fontSize: "11px", fontWeight: "600" }}>Transactions</span>
+                                <span style={{ fontSize: "11px", fontWeight: "600", color: "#ffffff"  }}>Transactions</span>
                             </button>
                             <button onClick={() => showPage && showPage("Notifications")} className="action-tile dark">
                                 <i className="fa-solid fa-bell" style={{ fontSize: "16px", marginBottom: "6px" }}></i>
-                                <span style={{ fontSize: "11px", fontWeight: "600" }}>Check Alerts</span>
+                                <span style={{ fontSize: "11px", fontWeight: "600", color: "#ffffff"  }}>Check Alerts</span>
                             </button>
                             <button onClick={() => showPage && showPage("Reports")} className="action-tile darker">
                                 <i className="fa-solid fa-chart-pie" style={{ fontSize: "16px", marginBottom: "6px" }}></i>
-                                <span style={{ fontSize: "11px", fontWeight: "600" }}>Reports</span>
+                                <span style={{ fontSize: "11px", fontWeight: "600", color: "#ffffff"  }}>Reports</span>
                             </button>
                         </div>
 

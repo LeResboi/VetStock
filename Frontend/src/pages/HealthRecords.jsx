@@ -760,16 +760,16 @@ export default function HealthRecords() {
                       <td>
                         <div>{formattedFollowUpDate}</div>
                         <span className={`follow-up-status ${followUpStatus === 'Overdue'
-                            ? 'overdue'
-                            : followUpStatus === 'Upcoming'
-                              ? 'upcoming'
-                              : followUpStatus === 'Completed'
-                                ? 'completed'
-                                : followUpStatus === 'Missed'
-                                  ? 'missed'
-                                  : followUpStatus === 'Cancelled'
-                                    ? 'cancelled'
-                                    : 'not-scheduled'
+                          ? 'overdue'
+                          : followUpStatus === 'Upcoming'
+                            ? 'upcoming'
+                            : followUpStatus === 'Completed'
+                              ? 'completed'
+                              : followUpStatus === 'Missed'
+                                ? 'missed'
+                                : followUpStatus === 'Cancelled'
+                                  ? 'cancelled'
+                                  : 'not-scheduled'
                           }`}>
                           {followUpStatus}
                         </span>
@@ -1485,18 +1485,10 @@ export default function HealthRecords() {
 
                   <input
                     type="date"
+                    className="followup-date-input"
                     value={newFollowUpDate}
                     onChange={(e) => setNewFollowUpDate(e.target.value)}
                     required
-                    style={{
-                      width: '100%',
-                      padding: '9px',
-                      marginBottom: '12px',
-                      backgroundColor: '#ffffff',
-                      color: '#000000',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '5px'
-                    }}
                   />
 
                   <label style={{
