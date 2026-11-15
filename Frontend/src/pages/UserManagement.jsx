@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import "./UserManagement.css";
 import Notification from "../components/Notification";
 
-const API_URL = "http://localhost:3001/api/auth";
+const API_URL = "https://vetstock-backend.onrender.com/api/auth";
 
 const AVAILABLE_ROLES = [
     "Administrator",

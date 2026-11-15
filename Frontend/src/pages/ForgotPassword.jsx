@@ -23,7 +23,7 @@ export default function ForgotPassword() {
 
         try {
             const response = await fetch(
-                'http://localhost:3001/api/auth/forgot-password',
+                'https://vetstock-backend.onrender.com/api/auth/forgot-password',
                 {
                     method: 'POST',
                     headers: {

@@ -14,15 +14,15 @@ export default function Dashboard({ showPage }) {
             const token = localStorage.getItem("token");
             const headers = { "Authorization": `Bearer ${token}` };
 
-            const invRes = await fetch("http://localhost:3001/api/inventory", { headers });
+            const invRes = await fetch("https://vetstock-backend.onrender.com/api/inventory", { headers });
             const invData = await invRes.json();
             if (invRes.ok) setInventory(Array.isArray(invData.data) ? invData.data : (Array.isArray(invData) ? invData : []));
 
-            const txRes = await fetch("http://localhost:3001/api/stock-transactions", { headers });
+            const txRes = await fetch("https://vetstock-backend.onrender.com/api/stock-transactions", { headers });
             const txData = await txRes.json();
             if (txRes.ok) setTransactions(Array.isArray(txData.data) ? txData.data : (Array.isArray(txData) ? txData : []));
 
-            const alRes = await fetch("http://localhost:3001/api/alerts", { headers });
+            const alRes = await fetch("https://vetstock-backend.onrender.com/api/alerts", { headers });
             const alData = await alRes.json();
             if (alRes.ok) setAlerts(Array.isArray(alData.data) ? alData.data : (Array.isArray(alData) ? alData : []));
         } catch (error) {

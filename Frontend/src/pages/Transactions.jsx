@@ -55,7 +55,7 @@ export default function Transactions() {
   const fetchUserAccess = useCallback(async () => {
     try {
       const response = await fetch(
-        'http://localhost:3001/api/auth/me',
+        'https://vetstock-backend.onrender.com/api/auth/me',
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -122,7 +122,7 @@ export default function Transactions() {
   const fetchBatches = useCallback(async () => {
     try {
       const response = await fetch(
-        'http://localhost:3001/api/stock-transactions/batches',
+        'https://vetstock-backend.onrender.com/api/stock-transactions/batches',
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -145,7 +145,7 @@ export default function Transactions() {
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/stock-transactions', {
+      const response = await fetch('https://vetstock-backend.onrender.com/api/stock-transactions', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -170,7 +170,7 @@ export default function Transactions() {
 
   const fetchInventoryItems = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/inventory', {
+      const response = await fetch('https://vetstock-backend.onrender.com/api/inventory', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -204,7 +204,7 @@ export default function Transactions() {
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/stock-transactions/${transactionId}`,
+        `https://vetstock-backend.onrender.com/api/stock-transactions/${transactionId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -296,7 +296,7 @@ export default function Transactions() {
       }
 
       const response = await fetch(
-        'http://localhost:3001/api/stock-transactions',
+        'https://vetstock-backend.onrender.com/api/stock-transactions',
         {
           method: 'POST',
           headers: {

@@ -73,7 +73,7 @@ export default function HealthRecords() {
   const fetchUserRole = useCallback(async () => {
     try {
       const response = await fetch(
-        'http://localhost:3001/api/auth/me',
+        'https://vetstock-backend.onrender.com/api/auth/me',
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -105,7 +105,7 @@ export default function HealthRecords() {
 
     try {
       const response = await fetch(
-        'http://localhost:3001/api/health-records',
+        'https://vetstock-backend.onrender.com/api/health-records',
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -135,7 +135,7 @@ export default function HealthRecords() {
 
     try {
       const response = await fetch(
-        'http://localhost:3001/api/patients',
+        'https://vetstock-backend.onrender.com/api/patients',
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -167,7 +167,7 @@ export default function HealthRecords() {
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/health-records/${recordId}/followups`,
+        `https://vetstock-backend.onrender.com/api/health-records/${recordId}/followups`,
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -214,7 +214,7 @@ export default function HealthRecords() {
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/health-records/${viewingRecord.record_id}/followups`,
+        `https://vetstock-backend.onrender.com/api/health-records/${viewingRecord.record_id}/followups`,
         {
           method: 'POST',
           headers: {
@@ -268,7 +268,7 @@ export default function HealthRecords() {
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/health-records/${viewingRecord.record_id}/followups/${followupId}`,
+        `https://vetstock-backend.onrender.com/api/health-records/${viewingRecord.record_id}/followups/${followupId}`,
         {
           method: 'PUT',
           headers: {
@@ -353,8 +353,8 @@ export default function HealthRecords() {
 
       const response = await fetch(
         isEditing
-          ? `http://localhost:3001/api/health-records/${editingRecord.record_id}`
-          : 'http://localhost:3001/api/health-records',
+          ? `https://vetstock-backend.onrender.com/api/health-records/${editingRecord.record_id}`
+          : 'https://vetstock-backend.onrender.com/api/health-records',
         {
           method: isEditing ? 'PUT' : 'POST',
           headers: {
@@ -450,7 +450,7 @@ export default function HealthRecords() {
 
         try {
           const response = await fetch(
-            `http://localhost:3001/api/health-records/${recordId}`,
+            `https://vetstock-backend.onrender.com/api/health-records/${recordId}`,
             {
               method: 'DELETE',
               headers: {

@@ -36,8 +36,8 @@ export default function Forecast() {
 
       const response = await fetch(
         refresh
-          ? 'http://localhost:3001/api/forecast-ai/refresh'
-          : 'http://localhost:3001/api/forecast-ai',
+          ? 'https://vetstock-backend.onrender.com/api/forecast-ai/refresh'
+          : 'https://vetstock-backend.onrender.com/api/forecast-ai',
         {
           method: refresh ? 'POST' : 'GET',
           headers: {
@@ -97,7 +97,7 @@ export default function Forecast() {
         const token = localStorage.getItem('token');
 
         const response = await fetch(
-          'http://localhost:3001/api/auth/me',
+          'https://vetstock-backend.onrender.com/api/auth/me',
           {
             headers: {
               Authorization: `Bearer ${token}`

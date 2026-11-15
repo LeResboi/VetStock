@@ -71,7 +71,7 @@ export default function Inventory() {
     const fetchUserRole = async () => {
       try {
         const response = await fetch(
-          'http://localhost:3001/api/auth/me',
+          'https://vetstock-backend.onrender.com/api/auth/me',
           {
             headers: {
               Authorization: `Bearer ${token}`
@@ -111,7 +111,7 @@ export default function Inventory() {
 
     try {
       const response = await fetch(
-        'http://localhost:3001/api/inventory',
+        'https://vetstock-backend.onrender.com/api/inventory',
         {
           method: 'POST',
           headers: {
@@ -173,7 +173,7 @@ export default function Inventory() {
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/inventory/${selectedItem.id}`,
+        `https://vetstock-backend.onrender.com/api/inventory/${selectedItem.id}`,
         {
           method: 'PUT',
           headers: {
@@ -229,7 +229,7 @@ export default function Inventory() {
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/inventory/${selectedItem.id}`,
+        `https://vetstock-backend.onrender.com/api/inventory/${selectedItem.id}`,
         {
           method: 'DELETE',
           headers: {
@@ -286,7 +286,7 @@ export default function Inventory() {
   }
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/inventory', {
+    fetch('https://vetstock-backend.onrender.com/api/inventory', {
       headers: {
         'Authorization': `Bearer ${token}`
       }

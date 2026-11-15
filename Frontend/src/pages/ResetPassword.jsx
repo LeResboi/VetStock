@@ -46,7 +46,7 @@ export default function ResetPassword() {
 
         try {
             const response = await fetch(
-                'http://localhost:3001/api/auth/reset-password',
+                'https://vetstock-backend.onrender.com/api/auth/reset-password',
                 {
                     method: 'POST',
                     headers: {

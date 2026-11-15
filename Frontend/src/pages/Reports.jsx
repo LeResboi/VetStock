@@ -22,7 +22,7 @@ export default function Reports() {
   const fetchUserRole = useCallback(async () => {
     try {
       const response = await fetch(
-        'http://localhost:3001/api/auth/me',
+        'https://vetstock-backend.onrender.com/api/auth/me',
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -59,10 +59,10 @@ export default function Reports() {
     setReportData([]);
 
     let endpoint = '';
-    if (type === 'inventory') endpoint = 'http://localhost:3001/api/reports/inventory-summary';
-    else if (type === 'transactions') endpoint = 'http://localhost:3001/api/reports/recent-transactions';
-    else if (type === 'health') endpoint = 'http://localhost:3001/api/reports/health-summary';
-    else if (type === 'expiry') endpoint = 'http://localhost:3001/api/reports/expiring?days=90';
+    if (type === 'inventory') endpoint = 'https://vetstock-backend.onrender.com/api/reports/inventory-summary';
+    else if (type === 'transactions') endpoint = 'https://vetstock-backend.onrender.com/api/reports/recent-transactions';
+    else if (type === 'health') endpoint = 'https://vetstock-backend.onrender.com/api/reports/health-summary';
+    else if (type === 'expiry') endpoint = 'https://vetstock-backend.onrender.com/api/reports/expiring?days=90';
 
     try {
       const response = await fetch(endpoint, {

@@ -81,7 +81,7 @@ export default function Patient() {
   const fetchUserRole = useCallback(async () => {
     try {
       const response = await fetch(
-        'http://localhost:3001/api/auth/me',
+        'https://vetstock-backend.onrender.com/api/auth/me',
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -114,7 +114,7 @@ export default function Patient() {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:3001/api/patients', {
+      const response = await fetch('https://vetstock-backend.onrender.com/api/patients', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -142,7 +142,7 @@ export default function Patient() {
 
     try {
       const response = await fetch(
-        'http://localhost:3001/api/patients/veterinarians',
+        'https://vetstock-backend.onrender.com/api/patients/veterinarians',
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -279,10 +279,10 @@ export default function Patient() {
       const isEditing = editingPatient !== null;
 
       const url = isEditing
-        ? `http://localhost:3001/api/patients/${encodeURIComponent(
+        ? `https://vetstock-backend.onrender.com/api/patients/${encodeURIComponent(
           editingPatient.patient_id
         )}`
-        : 'http://localhost:3001/api/patients';
+        : 'https://vetstock-backend.onrender.com/api/patients';
 
       const patientData = {
         patient_name: patientName.trim(),
@@ -359,7 +359,7 @@ export default function Patient() {
       onConfirm: async () => {
         try {
           const response = await fetch(
-            `http://localhost:3001/api/patients/${encodeURIComponent(pat.patient_id)}`,
+            `https://vetstock-backend.onrender.com/api/patients/${encodeURIComponent(pat.patient_id)}`,
             {
               method: 'PATCH',
               headers: {
@@ -415,7 +415,7 @@ export default function Patient() {
       onConfirm: async () => {
         try {
           const response = await fetch(
-            `http://localhost:3001/api/patients/${encodeURIComponent(pat.patient_id)}`,
+            `https://vetstock-backend.onrender.com/api/patients/${encodeURIComponent(pat.patient_id)}`,
             {
               method: 'DELETE',
               headers: {

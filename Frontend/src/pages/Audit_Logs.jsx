@@ -33,7 +33,7 @@ export default function AuditLogs() {
                 }
 
                 const response = await fetch(
-                    "http://localhost:3001/api/audit-logs",
+                    "https://vetstock-backend.onrender.com/api/audit-logs",
                     {
                         method: "GET",
                         headers: {

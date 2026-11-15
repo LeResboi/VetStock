@@ -105,7 +105,7 @@ export default function Notifications() {
     try {
       setRefreshing(true);
 
-      const response = await fetch('http://localhost:3001/api/alerts', {
+      const response = await fetch('https://vetstock-backend.onrender.com/api/alerts', {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -259,7 +259,7 @@ export default function Notifications() {
         unreadAlerts.map(async notif => {
           try {
             const response = await fetch(
-              `http://localhost:3001/api/alerts/${notif.id}`,
+              `https://vetstock-backend.onrender.com/api/alerts/${notif.id}`,
               {
                 method: 'PUT',
                 headers: {
@@ -331,7 +331,7 @@ export default function Notifications() {
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/alerts/${id}`,
+        `https://vetstock-backend.onrender.com/api/alerts/${id}`,
         {
           method: 'PUT',
           headers: {
@@ -405,7 +405,7 @@ export default function Notifications() {
       setResolvingId(id);
 
       const response = await fetch(
-        `http://localhost:3001/api/alerts/${id}/resolve`,
+        `https://vetstock-backend.onrender.com/api/alerts/${id}/resolve`,
         {
           method: 'PATCH',
           headers: {

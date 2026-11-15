@@ -55,8 +55,8 @@ export default function AuthApp() {
         }
 
         const endpoint = isRegister
-            ? 'http://localhost:3001/api/auth/register'
-            : 'http://localhost:3001/api/auth/login';
+            ? 'https://vetstock-backend.onrender.com/api/auth/register'
+            : 'https://vetstock-backend.onrender.com/api/auth/login';
 
         const payload = isRegister
             ? {
@@ -387,7 +387,7 @@ export function MainLayout() {
         try {
             if (token) {
                 const response = await fetch(
-                    'http://localhost:3001/api/auth/logout',
+                    'https://vetstock-backend.onrender.com/api/auth/logout',
                     {
                         method: 'POST',
                         headers: {
