@@ -33,12 +33,22 @@
 }
 
 .audit-header-icon {
-    color: #0d9488;
-    background: #ccfbf1;
+    color: #ffffff;
+    background: #0d9488;
     padding: 10px 15px;
     border-radius: 9px;
     font-size: 13px;
     font-weight: 600;
+}
+
+.audit-header-icon span {
+    color: #ffffff !important;
+}
+
+.audit-stat-icon.purple,
+.audit-stat-icon.green,
+.audit-stat-icon.orange {
+    color: #ffffff !important;
 }
 
 /* STATISTICS */
@@ -72,32 +82,38 @@
     font-weight: 700;
 }
 
+/* TOTAL ACTIVITIES - PURPLE */
 .audit-stat-icon.purple {
-    background: #ede9fe;
-    color: #7c3aed;
+    background: #ddd6fe;
+    color: #6d28d9;
 }
 
+/* LOGIN ACTIVITIES - GREEN */
 .audit-stat-icon.green {
-    background: #d1fae5;
-    color: #059669;
+    background: #a7f3d0;
+    color: #047857;
 }
 
+/* USERS WITH ACTIVITY - ORANGE */
 .audit-stat-icon.orange {
-    background: #ffedd5;
-    color: #ea580c;
+    background: #fed7aa;
+    color: #c2410c;
 }
 
+/* COUNTER LABELS */
 .audit-stat-card p {
     margin: 0 0 5px;
-    color: #6b7280;
+    color: #475569;
     font-size: 13px;
+    font-weight: 600;
 }
 
+/* COUNTER NUMBERS */
 .audit-stat-card h2 {
     margin: 0;
-    color: #111827;
-    font-size: 25px;
-    font-weight: 700;
+    color: #1e293b;
+    font-size: 27px;
+    font-weight: 800;
 }
 
 /* MAIN CONTENT */
@@ -258,6 +274,7 @@
     white-space: nowrap;
 }
 
+
 /* ACTION LABELS */
 
 .audit-action {
@@ -271,139 +288,146 @@
     white-space: nowrap;
 }
 
-.action-login {
-    background: #dbeafe;
-    color: #1d4ed8;
-}
-
 /* LOGIN AND LOGOUT */
+.action-login {
+    background: #bfdbfe;
+    color: #1e40af;
+}
 
 .action-logout {
-    background: #fee2e2;
-    color: #dc2626;
+    background: #fecaca;
+    color: #b91c1c;
 }
 
-/* APPROVED ACCOUNTS */
-
-.action-user-approved {
-    background: #d1fae5;
-    color: #047857;
+/* UPDATE AND DELETE */
+.action-update {
+    background: #fde68a;
+    color: #92400e;
 }
 
+.action-delete {
+    background: #fecaca;
+    color: #991b1b;
+}
+
+/* FORCE ACTIVITY BADGE TEXT COLORS */
+.content .audit-action.action-login {
+    color: #1e40af !important;
+}
+
+.content .audit-action.action-logout {
+    color: #b91c1c !important;
+}
+
+.content .audit-action.action-update {
+    color: #92400e !important;
+}
+
+.content .audit-action.action-delete {
+    color: #991b1b !important;
+}
+
+/* FORCE STOCK ACTIVITY BADGE TEXT COLORS */
+.content .audit-action.action-stock-in {
+    color: #0f766e !important;
+}
+
+.content .audit-action.action-stock-out {
+    color: #c2410c !important;
+}
+
+/* APPROVED ACCOUNTS / CREATE */
+
+.action-user-approved,
 .action-register,
 .action-create {
-    background: #d1fae5;
+    background: #a7f3d0;
     color: #047857;
 }
 
+/* UPDATE AND DELETE */
+
 .action-update {
-    background: #fef3c7;
+    background: #fde68a;
     color: #b45309;
 }
 
 .action-delete {
-    background: #fee2e2;
+    background: #fecaca;
     color: #b91c1c;
 }
 
+/* STOCK ACTIVITIES */
+
 .action-stock-in {
-    background: #ccfbf1;
+    background: #99f6e4;
     color: #0f766e;
 }
 
 .action-stock-out {
-    background: #ffedd5;
+    background: #fed7aa;
     color: #c2410c;
 }
 
-.audit-details {
-    min-width: 200px;
-    max-width: 350px;
-    overflow-wrap: anywhere;
-}
-
-/* HEALTH RECORDS AUDIT ACTION COLORS */
+/* HEALTH RECORDS */
 
 .audit-action.action-health-record-created {
-    background-color: #dcfce7;
+    background-color: #bbf7d0;
     color: #15803d;
 }
 
 .audit-action.action-health-record-updated {
-    background-color: #dbeafe;
+    background-color: #bfdbfe;
     color: #1d4ed8;
 }
 
 .audit-action.action-health-record-deleted {
-    background-color: #fee2e2;
+    background-color: #fecaca;
     color: #b91c1c;
 }
 
+/* FOLLOW-UP ACTIVITIES */
+
 .audit-action.action-followup-scheduled {
-    background-color: #f3e8ff;
+    background-color: #e9d5ff;
     color: #7e22ce;
 }
 
 .audit-action.action-followup-updated {
-    background-color: #ffedd5;
+    background-color: #fed7aa;
     color: #c2410c;
 }
 
-/* PATIENT AUDIT ACTION COLORS */
+/* PATIENT ACTIVITIES */
 
 .audit-action.action-patient-created {
-    background-color: #dcfce7;
+    background-color: #bbf7d0;
     color: #15803d;
 }
 
 .audit-action.action-patient-updated {
-    background-color: #dbeafe;
+    background-color: #bfdbfe;
     color: #1d4ed8;
 }
 
 .audit-action.action-patient-deactivated {
-    background-color: #fee2e2;
+    background-color: #fecaca;
     color: #b91c1c;
 }
 
 /* REGISTRATION REQUESTED */
 
 .audit-action.action-registration-requested {
-    background-color: #fef3c7;
+    background-color: #fde68a;
     color: #92400e;
-}
-
-/* USER REJECTED */
-
-.audit-action.action-user-rejected {
-    background-color: #fee2e2;
-    color: #b91c1c;
 }
 
 /* USER REJECTED AND DEACTIVATED */
 
 .audit-action.action-user-rejected,
 .audit-action.action-user-deactivated {
-    background-color: #fee2e2;
+    background-color: #fecaca;
     color: #b91c1c;
-}
-
-/* EMPTY AND LOADING STATES */
-
-.audit-message,
-.audit-empty {
-    padding: 35px 15px !important;
-    text-align: center;
-    color: #9ca3af !important;
-}
-
-.audit-error {
-    margin-bottom: 15px;
-    padding: 12px 15px;
-    border-radius: 8px;
-    background: #fee2e2;
-    color: #b91c1c;
-    font-size: 13px;
 }
 
 /* PAGINATION */

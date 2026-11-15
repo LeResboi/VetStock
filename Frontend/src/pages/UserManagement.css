@@ -25,7 +25,7 @@
 
 .um-refresh-btn:hover {
     background: #f1f5f9;
-    border-color: #0d9488;
+    border-color: #64748b;
 }
 
 .um-spinning {
@@ -96,7 +96,7 @@
 .um-pending-count {
     padding: 7px 12px;
     border-radius: 20px;
-    background: #fef3c7;
+    background: #f9da8d;
     color: #b45309;
     font-size: 12px;
     font-weight: 700;
@@ -293,7 +293,7 @@
 .um-user-count {
     padding: 7px 12px;
     border-radius: 20px;
-    background: #ccfbf1;
+    background: #67e6ca;
     color: #0f766e;
     font-size: 12px;
     font-weight: 700;
@@ -840,7 +840,7 @@
     text-align: center;
 }
 
-.um-centered-header > div {
+.um-centered-header>div {
     flex: 1;
     text-align: center;
 }
@@ -899,7 +899,7 @@
     text-align: center;
 }
 
-.um-centered-header > div {
+.um-centered-header>div {
     flex: 1;
     text-align: center;
 }
