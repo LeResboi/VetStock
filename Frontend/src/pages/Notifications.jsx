@@ -67,6 +67,9 @@ export default function Notifications() {
   const [filter, setFilter] = useState('all');
 
   const [resolvingId, setResolvingId] = useState(null);
+  const [showResolveModal, setShowResolveModal] = useState(false);
+  const [resolveNote, setResolveNote] = useState('');
+  const [alertToResolve, setAlertToResolve] = useState(null);
 
   const audioRef = useRef(null);
 
@@ -396,16 +399,15 @@ export default function Notifications() {
   // RESOLVE ALERT
   // ============================================================
 
-  const handleResolveAlert = async (id) => {
-    if (!window.confirm('Are you sure you want to resolve this alert?')) {
-      return;
-    }
+   const handleResolveAlert = async () => {
+    if (!alertToResolve) return;
 
     try {
-      setResolvingId(id);
+      setResolvingId(alertToResolve);
+      setShowResolveModal(false); // Close modal
 
       const response = await fetch(
-        `https://vetstock-backend.onrender.com/api/alerts/${id}/resolve`,
+        `https://vetstock-backend.onrender.com/api/alerts/${alertToResolve}/resolve`,
         {
           method: 'PATCH',
           headers: {
@@ -413,7 +415,7 @@ export default function Notifications() {
             Authorization: `Bearer ${token}`
           },
           body: JSON.stringify({
-            resolution_notes: null
+            resolution_notes: resolveNote.trim() || 'No notes provided' // 🔥 SENDS THE NOTE
           })
         }
       );
@@ -426,16 +428,16 @@ export default function Notifications() {
 
       setToastMessage('Alert resolved successfully.');
       setToastType('success');
-
-      // Reload active alerts so the resolved alert disappears.
-      await fetchAlerts();
+      
+      setResolveNote(''); // Clear the note
+      setAlertToResolve(null);
+      
+      await fetchAlerts(); // Reload list
 
     } catch (err) {
       console.error('Error resolving alert:', err);
-
       setToastMessage(err.message || 'Unable to resolve alert.');
       setToastType('error');
-
     } finally {
       setResolvingId(null);
     }
@@ -640,7 +642,9 @@ export default function Notifications() {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleResolveAlert(notif.id);
+                    // 🔥 Open the modal and set the ID
+                    setAlertToResolve(notif.id); 
+                    setShowResolveModal(true);
                   }}
                   disabled={resolvingId !== null}
                   style={{
@@ -671,7 +675,40 @@ export default function Notifications() {
         )}
 
       </div>
+        
+      {showResolveModal && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div className="modal-content" style={{ background: '#fff', padding: '24px', borderRadius: '8px', width: '400px', maxWidth: '90%' }}>
+            <h3 style={{ marginBottom: '15px' }}>Resolve Alert</h3>
+            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '15px' }}>
+              Please provide a brief note on how this issue was resolved (e.g., "Restocked 50 units").
+            </p>
+            
+            <textarea
+              value={resolveNote}
+              onChange={(e) => setResolveNote(e.target.value)}
+              placeholder="Type your resolution notes here..."
+              rows="4"
+              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', marginBottom: '20px', fontFamily: 'inherit' }}
+            />
 
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                onClick={() => setShowResolveModal(false)}
+                style={{ padding: '8px 16px', background: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', color: '#334155' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleResolveAlert}
+                style={{ padding: '8px 16px', background: '#10b981', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', color: '#fff' }}
+              >
+                Submit & Resolve
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
