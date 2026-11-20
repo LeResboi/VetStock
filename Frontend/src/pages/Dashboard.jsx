@@ -114,18 +114,33 @@ export default function Dashboard({ showPage }) {
         return qty <= reorder;
     }).length;
 
-    const stockOutTransactions = transactions.filter(t => String(t.transaction_type || "").toUpperCase() === "OUT" && isThisMonth(t.created_at));
+    // Multi-line data computation per week (Stock In vs Stock Out)
+    const thisMonthTransactions = transactions.filter(t => isThisMonth(t.created_at));
 
-    let w1Count = 0, w2Count = 0, w3Count = 0, w4Count = 0;
-    stockOutTransactions.forEach(t => {
+    let stockInW1 = 0, stockInW2 = 0, stockInW3 = 0, stockInW4 = 0;
+    let stockOutW1 = 0, stockOutW2 = 0, stockOutW3 = 0, stockOutW4 = 0;
+
+    thisMonthTransactions.forEach(t => {
         const day = new Date(t.created_at).getDate();
-        if (day >= 1 && day <= 7) w1Count += Number(t.quantity || 1);
-        else if (day >= 8 && day <= 14) w2Count += Number(t.quantity || 1);
-        else if (day >= 15 && day <= 21) w3Count += Number(t.quantity || 1);
-        else w4Count += Number(t.quantity || 1);
+        const weekIdx = day >= 1 && day <= 7 ? 1 : day >= 8 && day <= 14 ? 2 : day >= 15 && day <= 21 ? 3 : 4;
+        const type = String(t.transaction_type || "").toUpperCase();
+        const qty = Number(t.quantity || 1);
+
+        if (type === "IN") {
+            if (weekIdx === 1) stockInW1 += qty;
+            else if (weekIdx === 2) stockInW2 += qty;
+            else if (weekIdx === 3) stockInW3 += qty;
+            else stockInW4 += qty;
+        } else if (type === "OUT") {
+            if (weekIdx === 1) stockOutW1 += qty;
+            else if (weekIdx === 2) stockOutW2 += qty;
+            else if (weekIdx === 3) stockOutW3 += qty;
+            else stockOutW4 += qty;
+        }
     });
 
-    const weeklySalesData = [w1Count, w2Count, w3Count, w4Count];
+    const weeklyStockInData = [stockInW1, stockInW2, stockInW3, stockInW4];
+    const weeklyStockOutData = [stockOutW1, stockOutW2, stockOutW3, stockOutW4];
 
     const calendarEvents = [];
     
@@ -243,18 +258,32 @@ export default function Dashboard({ showPage }) {
                         <div className="analytics-card-custom">
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <div>
-                                    <span style={{ fontSize: "11px", fontWeight: "bold", color: "var(--primary)", textTransform: "uppercase" }}>Recent Goods Sales</span>
-                                    <p style={{ fontSize: "11px", color: "var(--muted)" }}>Total Stock Out: <strong style={{ color: "var(--text)" }}>{stockOutThisMonth} items</strong></p>
+                                    <span style={{ fontSize: "11px", fontWeight: "bold", color: "var(--primary)", textTransform: "uppercase" }}>Weekly Inventory Movement</span>
+                                    <p style={{ fontSize: "11px", color: "var(--muted)" }}>
+                                        In: <strong style={{ color: "#0d9488" }}>{stockInThisMonth}</strong> | Out: <strong style={{ color: "#f97316" }}>{stockOutThisMonth}</strong>
+                                    </p>
                                 </div>
                                 <button onClick={() => showPage && showPage("Transactions")} style={{ width: "28px", height: "28px", borderRadius: "50%", background: "var(--primary)", color: "white", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                     <i className="fa-solid fa-arrow-right" style={{ fontSize: "10px" }}></i>
                                 </button>
                             </div>
-                            <div style={{ width: '100%', height: '180px', marginTop: '10px' }}>
+                            <div style={{ width: '100%', height: '200px', marginTop: '6px' }}>
                                 <LineChart
-                                    series={[{ data: weeklySalesData, color: '#0d9488', label: 'Stock Out', area: true }]}
+                                    series={[
+                                        { data: weeklyStockInData, color: '#0d9488', label: 'Stock In', showMark: false },
+                                        { data: weeklyStockOutData, color: '#f97316', label: 'Stock Out', showMark: false }
+                                    ]}
                                     xAxis={[{ scaleType: 'point', data: ['Week 1', 'Week 2', 'Week 3', 'Week 4'] }]}
-                                    margin={{ top: 10, bottom: 20, left: 25, right: 10 }}
+                                    grid={{ horizontal: true }}
+                                    margin={{ top: 15, bottom: 35, left: 30, right: 15 }}
+                                    slotProps={{
+                                        legend: {
+                                            direction: 'row',
+                                            position: { vertical: 'bottom', horizontal: 'middle' },
+                                            padding: 0,
+                                            labelStyle: { fontSize: 11, fill: '#4b5563' },
+                                        },
+                                    }}
                                 />
                             </div>
                         </div>
@@ -398,7 +427,7 @@ export default function Dashboard({ showPage }) {
                 </div>
             )}
 
-            {/* DAY DETAIL MODAL (Naalis na ang X button sa itaas) */}
+            {/* DAY DETAIL MODAL */}
             {isDayDetailModalOpen && selectedDate && (
                 <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", background: "rgba(0, 0, 0, 0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000, backdropFilter: "blur(4px)" }}>
                     <div style={{ background: "#ffffff", width: "90%", maxWidth: "450px", borderRadius: "12px", padding: "24px", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)" }}>
