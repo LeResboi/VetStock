@@ -135,11 +135,14 @@
     padding-left: 18px;
 }
 
+/* GINAWANG JUSTIFIED ANG MGA TEKSTO SA LOOB NG CARDS PARA SA MGA RESPONDENTS */
 .card-content li {
     font-size: 14px;
-    line-height: 1.6;
+    line-height: 1.65;
     color: #475569;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
+    text-align: justify;
+    text-justify: inter-word;
 }
 
 .card-content strong {
@@ -194,6 +197,7 @@
   color: #6b7280;
   font-size: 13px;
   line-height: 1.6;
+  text-align: justify;
 }
 
 .forecast-table-scroll {

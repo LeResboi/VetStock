@@ -104,10 +104,99 @@ router.get(
     });
 
 // ======================================================
+// GET DELETED PATIENTS (TRASH)
+// GET /api/patients/deleted
+// ======================================================
+router.get(
+    "/deleted",
+    authenticateToken,
+    requireRole("Administrator"),
+    async (req, res) => {
+        try {
+            const { data, error } = await supabase
+                .from("patients")
+                .select("*")
+                .eq("clinic_id", req.user.clinic_id)
+                .eq("is_active", false)
+                .order("updated_at", { ascending: false });
+
+            if (error) {
+                throw error;
+            }
+
+            return res.json({
+                success: true,
+                data: data || []
+            });
+        } catch (error) {
+            console.error("Fetch deleted patients error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Failed to retrieve deleted patients.",
+                error: error.message
+            });
+        }
+    }
+);
+
+// ======================================================
+// RESTORE PATIENT
+// POST /api/patients/:id/restore
+// ======================================================
+router.post(
+    "/:id/restore",
+    authenticateToken,
+    requireRole("Administrator"),
+    async (req, res) => {
+        try {
+            const { data, error } = await supabase
+                .from("patients")
+                .update({
+                    is_active: true,
+                    updated_at: new Date().toISOString()
+                })
+                .eq("patient_id", req.params.id)
+                .eq("clinic_id", req.user.clinic_id)
+                .select()
+                .single();
+
+            if (error || !data) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Patient not found or already active."
+                });
+            }
+
+            await createAuditLog(req, {
+                action: "PATIENT_RESTORED",
+                targetTable: "patients",
+                targetId: data.patient_id,
+                details: {
+                    description: `Restored patient: ${data.patient_name}`,
+                    patient_name: data.patient_name
+                }
+            });
+
+            return res.json({
+                success: true,
+                message: "Patient restored successfully.",
+                data
+            });
+        } catch (error) {
+            console.error("Restore patient error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Failed to restore patient.",
+                error: error.message
+            });
+        }
+    }
+);
+
+// ======================================================
 // GET ALL PATIENTS
 // GET /api/patients
 // ======================================================
-
 router.get(
     "/",
     authenticateToken,
@@ -118,9 +207,7 @@ router.get(
         "Veterinarian"
     ),
     async (req, res) => {
-
         try {
-
             const { data, error } = await supabase
                 .from("patients")
                 .select("*")
@@ -132,7 +219,6 @@ router.get(
                 throw error;
             }
 
-            // Find the veterinarian IDs used by these patients
             const veterinarianIds = [
                 ...new Set(
                     data
@@ -162,7 +248,6 @@ router.get(
                 );
             }
 
-            // Include the veterinarian name in each patient response
             const patientsWithVetNames = data.map(patient => ({
                 ...patient,
                 appointment_veterinarian_name:
@@ -175,25 +260,19 @@ router.get(
             });
 
         } catch (error) {
-
             console.error(error);
-
             return res.status(500).json({
                 success: false,
                 message: "Failed to retrieve patients.",
                 error: error.message
             });
-
         }
-
     });
-
 
 // ======================================================
 // GET ONE PATIENT
 // GET /api/patients/:id
 // ======================================================
-
 router.get(
     "/:id",
     authenticateToken,
@@ -219,7 +298,6 @@ router.get(
                 });
             }
 
-            // Get the assigned veterinarian's full name
             let appointment_veterinarian_name = null;
 
             if (data.appointment_veterinarian_id) {
@@ -250,21 +328,19 @@ router.get(
 
         } catch (error) {
             console.error("Get patient error:", error);
-
             return res.status(500).json({
                 success: false,
                 message: "Failed to retrieve patient.",
                 error: error.message
             });
         }
-    });
-
+    }
+);
 
 // ======================================================
 // CREATE PATIENT
 // POST /api/patients
 // ======================================================
-
 router.post(
     "/",
     authenticateToken,
@@ -273,10 +349,7 @@ router.post(
         "Veterinarian"
     ),
     async (req, res) => {
-        console.log("POST /api/patients reached");
-        console.log("User:", req.user);
         try {
-
             const {
                 patient_name,
                 species,
@@ -291,22 +364,13 @@ router.post(
                 appointment_status
             } = req.body;
 
-
-            // ==================================================
-            // REQUIRED FIELDS
-            // ==================================================
-
             if (!patient_name || !species || !owner_name) {
-
                 return res.status(400).json({
                     success: false,
-                    message:
-                        "Patient name, species, and owner name are required."
+                    message: "Patient name, species, and owner name are required."
                 });
-
             }
 
-            // Validate appointment date
             if (
                 appointment_date &&
                 !isValidAppointmentDate(appointment_date)
@@ -316,10 +380,6 @@ router.post(
                     message: "Appointment date must be today or a future date."
                 });
             }
-
-            // ==================================================
-            // VALIDATE SELECTED VETERINARIAN
-            // ==================================================
 
             let veterinarianId = appointment_veterinarian_id || null;
 
@@ -334,8 +394,6 @@ router.post(
                     throw roleError;
                 }
 
-                // Confirm the selected user is an active veterinarian
-                // belonging to the current clinic
                 const { data: veterinarian, error: vetError } = await supabase
                     .from("users")
                     .select("user_id")
@@ -358,50 +416,25 @@ router.post(
                 veterinarianId = veterinarian.user_id;
             }
 
-            // ==================================================
-            // CREATE PATIENT
-            // ==================================================
-
             const { data, error } = await supabase
                 .from("patients")
                 .insert([{
-
-                    // Patient
                     clinic_id: req.user.clinic_id,
                     patient_name,
                     species,
                     gender: gender || null,
-
-                    // Owner
                     owner_name,
-                    owner_phone:
-                        owner_phone || null,
-                    owner_email:
-                        owner_email || null,
-
-                    // Appointment
-                    appointment_date:
-                        appointment_date || null,
-
-                    appointment_time:
-                        appointment_time || null,
-
-                    appointment_veterinarian_id:
-                        veterinarianId,
-
-                    appointment_reason:
-                        appointment_reason || null,
-
-                    appointment_status:
-                        appointment_status || "scheduled",
-
-                    // Active
+                    owner_phone: owner_phone || null,
+                    owner_email: owner_email || null,
+                    appointment_date: appointment_date || null,
+                    appointment_time: appointment_time || null,
+                    appointment_veterinarian_id: veterinarianId,
+                    appointment_reason: appointment_reason || null,
+                    appointment_status: appointment_status || "Scheduled",
                     is_active: true
-
                 }])
                 .select()
                 .single();
-
 
             if (error) {
                 throw error;
@@ -417,48 +450,31 @@ router.post(
                     species: data.species,
                     owner_name: data.owner_name,
                     appointment_date: data.appointment_date || null,
-                    appointment_veterinarian_id:
-                        data.appointment_veterinarian_id || null
+                    appointment_veterinarian_id: data.appointment_veterinarian_id || null
                 }
             });
 
             return res.status(201).json({
                 success: true,
-                message:
-                    "Patient created successfully.",
+                message: "Patient created successfully.",
                 data
             });
 
-
         } catch (error) {
-
-            console.error(
-                "Create patient error:",
-                error
-            );
-
+            console.error("Create patient error:", error);
             return res.status(500).json({
-
                 success: false,
-
-                message:
-                    "Failed to create patient.",
-
+                message: "Failed to create patient.",
                 error: error.message
-
             });
-
         }
-
     }
 );
-
 
 // ======================================================
 // PATCH PATIENT
 // PATCH /api/patients/:id
 // ======================================================
-
 router.patch(
     "/:id",
     authenticateToken,
@@ -467,12 +483,8 @@ router.patch(
         "Veterinarian"
     ),
     async (req, res) => {
-
         try {
-
             const allowedFields = [
-
-                // Patient
                 "patient_name",
                 "species",
                 "breed",
@@ -480,24 +492,17 @@ router.patch(
                 "gender",
                 "is_neutered",
                 "microchip_number",
-
-                // Owner
                 "owner_name",
                 "owner_phone",
                 "owner_email",
-
-                // Appointment
                 "appointment_date",
                 "appointment_time",
                 "appointment_reason",
                 "appointment_status"
-
             ];
-
 
             const updates = {};
 
-            // Validate appointment date when updating
             if (
                 req.body.appointment_date !== undefined &&
                 req.body.appointment_date !== null &&
@@ -510,11 +515,9 @@ router.patch(
                 });
             }
 
-            // Validate the selected veterinarian when updating a patient
             if (req.body.appointment_veterinarian_id !== undefined) {
                 const requestedVetId = req.body.appointment_veterinarian_id;
 
-                // Allow the veterinarian assignment to be cleared
                 if (requestedVetId === null || requestedVetId === "") {
                     updates.appointment_veterinarian_id = null;
                 } else {
@@ -558,13 +561,23 @@ router.patch(
                 }
             }
 
-            // Allow appointment date to be cleared
             if (req.body.appointment_date !== undefined) {
                 updates.appointment_date = req.body.appointment_date || null;
             }
 
-            updates.updated_at = new Date().toISOString();
+            // Pilit nating nire-reset sa 'Scheduled' kapag inedit ang petsa
+            // maliban na lang kung may tahasang appointment_status na ipinasa (tulad ng pag-click ng check/cancel)
+            if (updates.appointment_date) {
+                if (req.body.appointment_status !== undefined && req.body.appointment_status !== null && req.body.appointment_status !== "") {
+                    updates.appointment_status = req.body.appointment_status;
+                } else {
+                    updates.appointment_status = "Scheduled";
+                }
+            } else if (updates.appointment_date === null) {
+                updates.appointment_status = null;
+            }
 
+            updates.updated_at = new Date().toISOString();
 
             const { data, error } = await supabase
                 .from("patients")
@@ -574,17 +587,7 @@ router.patch(
                 .select()
                 .maybeSingle();
 
-            // Show the actual database error
             if (error) {
-                console.error("Update patient database error:", {
-                    message: error.message,
-                    code: error.code,
-                    details: error.details,
-                    hint: error.hint,
-                    patientId: req.params.id,
-                    clinicId: req.user.clinic_id
-                });
-
                 return res.status(500).json({
                     success: false,
                     message: "Database error while updating patient.",
@@ -592,13 +595,7 @@ router.patch(
                 });
             }
 
-            // No matching patient was updated
             if (!data) {
-                console.error("No patient matched the update request:", {
-                    patientId: req.params.id,
-                    clinicId: req.user.clinic_id
-                });
-
                 return res.status(404).json({
                     success: false,
                     message: "Patient not found."
@@ -625,13 +622,11 @@ router.patch(
             });
 
         } catch (error) {
-
             console.error(error);
             return res.status(500).json({
                 success: false,
                 message: "Failed to update patient.",
                 error: error.message
-
             });
         }
     }
@@ -641,7 +636,6 @@ router.patch(
 // DEACTIVATE PATIENT
 // DELETE /api/patients/:id
 // ======================================================
-
 router.delete(
     "/:id",
     authenticateToken,
@@ -649,26 +643,19 @@ router.delete(
         "Administrator",
     ),
     async (req, res) => {
-
         try {
-
             const { data, error } = await supabase
                 .from("patients")
                 .update({
-
                     is_active: false,
-
                     updated_at: new Date().toISOString()
-
                 })
                 .eq("patient_id", req.params.id)
                 .eq("clinic_id", req.user.clinic_id)
                 .select()
                 .single();
 
-
             if (error || !data) {
-
                 return res.status(404).json({
                     success: false,
                     message: "Patient not found."
@@ -692,17 +679,13 @@ router.delete(
             });
 
         } catch (error) {
-
             console.error(error);
-
             return res.status(500).json({
                 success: false,
                 message: "Failed to deactivate patient.",
                 error: error.message
             });
-
         }
-
     }
 );
 

@@ -1,4 +1,4 @@
- /* Inventory Css */
+/* Inventory Css */
 
  .inventory-page {
    padding: 20px;
@@ -540,16 +540,6 @@
    min-height: 0;
  }
 
- .inventory-details-modal .modal-body {
-   overflow-y: auto;
-   max-height: 70vh;
- }
-
- .inventory-details-modal {
-   width: 700px;
-   max-width: calc(100% - 30px);
- }
-
  .inventory-detail-grid {
    display: grid;
    grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -565,7 +555,6 @@
    text-align: center;
  }
 
- /* Make the last card full width when the number of cards is odd */
  .inventory-detail-item:last-child:nth-child(odd) {
    grid-column: 1 / -1;
  }
@@ -585,7 +574,6 @@
  }
 
  /* Batch Information */
-
  .inventory-batch-section {
    margin-top: 20px;
  }
@@ -613,12 +601,9 @@
    margin: 5px 0;
  }
 
- /* Expand the last batch card when the number of batches is odd */
  .inventory-batch-card:last-child:nth-child(odd) {
    grid-column: 1 / -1;
  }
-
- /* Clickable Inventory Rows */
 
  .inventory-clickable-row {
    cursor: pointer;
@@ -628,10 +613,7 @@
    background-color: #f0fdfa;
  }
 
- /* Responsive Layout */
-
  @media (max-width: 600px) {
-
    .inventory-detail-grid,
    .inventory-batch-list {
      grid-template-columns: 1fr;
@@ -646,27 +628,18 @@
    }
  }
 
- /* ============================================================
-   INVENTORY DETAILS MODAL - CENTER POSITIONING
-  ============================================================ */
-
  .modal-overlay.inventory-details-overlay {
    position: fixed;
    inset: 0;
-
    width: 100%;
    height: 100%;
-
    display: flex;
    justify-content: center;
    align-items: center;
-
    box-sizing: border-box;
    padding: 20px;
-
    background: rgba(0, 0, 0, 0.45);
    z-index: 10000;
-
    overflow-y: auto;
  }
 
@@ -688,7 +661,6 @@
    max-height: 70vh;
  }
 
- /* Mobile screens */
  @media (max-width: 600px) {
    .modal-overlay.inventory-details-overlay {
      padding: 12px;
@@ -701,7 +673,6 @@
    }
  }
 
- /* SHOW EXPIRATION DATE CALENDAR ICON */
  .inventory-modal input[type="date"] {
    appearance: auto;
    -webkit-appearance: auto;
@@ -717,8 +688,6 @@
    -webkit-appearance: auto;
  }
 
-
-
  .inventory-modal input[type="number"]::-webkit-inner-spin-button,
  .inventory-modal input[type="number"]::-webkit-outer-spin-button {
    -webkit-appearance: inner-spin-button;
@@ -727,7 +696,6 @@
    cursor: pointer;
  }
 
- /* FIX EXPIRATION DATE CALENDAR ICON */
  .inventory-modal .modal-body input[type="date"] {
    color-scheme: light !important;
    background-color: #ffffff !important;
@@ -745,7 +713,6 @@
    width: 18px;
    height: 18px;
  }
-
 
  /* ============================================================
     INVENTORY PAGINATION
@@ -790,41 +757,6 @@
  }
 
  .inventory-pagination-controls button {
-   border: none;
-   background: transparent;
-   color: #0d9488;
-   font-size: 13px;
-   font-weight: 600;
-   cursor: pointer;
- }
-
- .inventory-pagination-controls button:hover:not(:disabled) {
-   color: #0f766e;
- }
-
- .inventory-pagination-controls button:disabled {
-   color: #cbd5e1;
-   cursor: not-allowed;
- }
-
- .inventory-pagination-controls span {
-   color: #6b7280;
-   white-space: nowrap;
- }
-
- @media (max-width: 650px) {
-   .inventory-pagination {
-     flex-direction: column;
-     align-items: flex-start;
-   }
-
-   .inventory-pagination-controls {
-     width: 100%;
-     justify-content: space-between;
-   }
- }
-
- .inventory-pagination-controls button {
    padding: 7px 14px;
    border: 1px solid #d1d5db;
    border-radius: 6px;
@@ -846,4 +778,90 @@
    color: #9ca3af;
    border-color: #e5e7eb;
    cursor: not-allowed;
+ }
+
+ .inventory-pagination-controls span {
+   color: #6b7280;
+   white-space: nowrap;
+ }
+
+ @media (max-width: 650px) {
+   .inventory-pagination {
+     flex-direction: column;
+     align-items: flex-start;
+   }
+
+   .inventory-pagination-controls {
+     width: 100%;
+     justify-content: space-between;
+   }
+ }
+
+ /* ============================================================
+    PRINT / PDF REPORT STYLING
+  ============================================================ */
+ @media print {
+   /* 1. Itago ang mga button, toolbar, pagination, at ang buong Actions column */
+   .inventory-header button,
+   .inventory-toolbar,
+   .inventory-pagination,
+   .no-print,
+   .modern-table th:last-child,
+   .modern-table td:last-child {
+     display: none !important;
+   }
+
+   /* 2. Ipakita ang opisyal na header sa itaas ng papel */
+   .print-header {
+     display: block !important;
+     text-align: center;
+     margin-bottom: 20px;
+   }
+
+   .print-header h2 {
+     font-size: 18px;
+     font-weight: bold;
+     color: #000;
+     margin: 0 0 5px 0;
+   }
+
+   .print-header p {
+     font-size: 12px;
+     color: #555;
+     margin: 0;
+   }
+
+   /* 3. Siguraduhing malinis at nakaputi ang background para sa pag-print */
+   body, .inventory-page, .table-container {
+     background-color: white !important;
+     color: black !important;
+     box-shadow: none !important;
+     border: none !important;
+     padding: 0 !important;
+   }
+
+   /* 4. Ayusin ang hitsura ng table sa bond paper */
+   .modern-table {
+     width: 100% !important;
+     border-collapse: collapse !important;
+   }
+
+   .modern-table th {
+     background-color: #f3f4f6 !important;
+     color: #000 !important;
+     border: 1px solid #ccc !important;
+     -webkit-print-color-adjust: exact;
+     print-color-adjust: exact;
+   }
+
+   .modern-table td {
+     border: 1px solid #ccc !important;
+     color: #000 !important;
+   }
+
+   /* 5. Magtakda ng magandang margin sa papel */
+   @page {
+     size: portrait;
+     margin: 15mm;
+   }
  }

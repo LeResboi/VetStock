@@ -20,9 +20,12 @@ function getTodayManilaDate() {
 
 export default function Patient() {
   const [patients, setPatients] = useState([]);
+  const [deletedPatients, setDeletedPatients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deletedLoading, setDeletedLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [trashSearchTerm, setTrashSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'table'
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [pageSize, setPageSize] = useState(5);
@@ -39,7 +42,11 @@ export default function Patient() {
   const [confirmation, setConfirmation] = useState(null);
   const [confirming, setConfirming] = useState(false);
 
-  // Modal State para sa Add Patient
+  // Trash / Recent Deletes Modal State
+  const [showTrashModal, setShowTrashModal] = useState(false);
+  const [restoringId, setRestoringId] = useState(null);
+
+  // Modal State para sa Add/Edit Patient
   const [showModal, setShowModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [patientName, setPatientName] = useState('');
@@ -64,18 +71,10 @@ export default function Patient() {
   const [userRoleLoading, setUserRoleLoading] = useState(true);
 
   // Patient permissions
-  const canAddPatient =
-    ['Administrator', 'Veterinarian'].includes(userRole);
-
-  const canEditPatient =
-    ['Administrator', 'Veterinarian'].includes(userRole);
-
-  const canDeletePatient =
-    userRole === 'Administrator';
-
-  // Appointment status management
-  const canUpdateAppointmentStatus =
-    ['Administrator', 'Veterinarian'].includes(userRole);
+  const canAddPatient = ['Administrator', 'Veterinarian'].includes(userRole);
+  const canEditPatient = ['Administrator', 'Veterinarian'].includes(userRole);
+  const canDeletePatient = userRole === 'Administrator';
+  const canUpdateAppointmentStatus = ['Administrator', 'Veterinarian'].includes(userRole);
 
   // Fetch current user's role
   const fetchUserRole = useCallback(async () => {
@@ -92,23 +91,19 @@ export default function Patient() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(
-          data.message || 'Unable to retrieve user role.'
-        );
+        throw new Error(data.message || 'Unable to retrieve user role.');
       }
 
       setUserRole(data.data?.role || '');
-
     } catch (error) {
       console.error('Fetch user role error:', error);
       setUserRole('');
-
     } finally {
       setUserRoleLoading(false);
     }
   }, [token]);
 
-  // 1. Fetch Patients from the backend Backend/Supabase
+  // 1. Fetch Active Patients
   const fetchPatients = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -135,7 +130,29 @@ export default function Patient() {
     }
   }, [token]);
 
-  // Fetch active veterinarians from the backend
+  // Fetch Deleted (Inactive) Patients with Debug Logs
+  const fetchDeletedPatients = useCallback(async () => {
+    setDeletedLoading(true);
+    try {
+      const response = await fetch('https://vetstock-backend.onrender.com/api/patients/deleted', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setDeletedPatients(Array.isArray(data.data) ? data.data : []);
+      }
+    } catch (err) {
+      console.error('Error fetching deleted patients:', err);
+    } finally {
+      setDeletedLoading(false);
+    }
+  }, [token]);
+
+  // Fetch active veterinarians
   const fetchVeterinarians = useCallback(async () => {
     setVeterinarianLoading(true);
     setVeterinarianError('');
@@ -153,40 +170,34 @@ export default function Patient() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(
-          data.message || 'Failed to load veterinarians.'
-        );
+        throw new Error(data.message || 'Failed to load veterinarians.');
       }
 
       setVeterinarians(Array.isArray(data.data) ? data.data : []);
     } catch (err) {
       console.error('Error fetching veterinarians:', err);
-      setVeterinarianError(
-        err.message || 'Unable to load veterinarians.'
-      );
+      setVeterinarianError(err.message || 'Unable to load veterinarians.');
     } finally {
       setVeterinarianLoading(false);
     }
   }, [token]);
 
-  // Fetch patients when the component loads
   useEffect(() => {
     fetchUserRole();
     fetchPatients();
-  }, [
-    fetchUserRole,
-    fetchPatients
-  ]);
+  }, [fetchUserRole, fetchPatients]);
+
+  useEffect(() => {
+    if (!userRoleLoading && canDeletePatient) {
+      fetchDeletedPatients();
+    }
+  }, [userRoleLoading, canDeletePatient, fetchDeletedPatients]);
 
   useEffect(() => {
     if (!userRoleLoading && canAddPatient) {
       fetchVeterinarians();
     }
-  }, [
-    userRoleLoading,
-    canAddPatient,
-    fetchVeterinarians
-  ]);
+  }, [userRoleLoading, canAddPatient, fetchVeterinarians]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -196,7 +207,6 @@ export default function Patient() {
     return () => clearInterval(intervalId);
   }, []);
 
-  // 2. Handle Submit to new patients
   const resetPatientForm = () => {
     setPatientName('');
     setSpecies('');
@@ -210,16 +220,13 @@ export default function Patient() {
     setAppointmentReason('');
   };
 
-  // Open the modal for adding a patient
   const openAddModal = () => {
     if (!canAddPatient) return;
-
     setEditingPatient(null);
     resetPatientForm();
     setShowModal(true);
   };
 
-  // Open the modal for editing an existing patient
   const openEditModal = (pat) => {
     if (!canEditPatient) return;
     setEditingPatient(pat);
@@ -232,15 +239,11 @@ export default function Patient() {
     setOwnerEmail(pat.owner_email || '');
 
     setAppointmentDate(
-      pat.appointment_date
-        ? String(pat.appointment_date).slice(0, 10)
-        : ''
+      pat.appointment_date ? String(pat.appointment_date).slice(0, 10) : ''
     );
 
     setAppointmentTime(
-      pat.appointment_time
-        ? String(pat.appointment_time).slice(0, 5)
-        : ''
+      pat.appointment_time ? String(pat.appointment_time).slice(0, 5) : ''
     );
 
     setVetId(pat.appointment_veterinarian_id || '');
@@ -249,27 +252,16 @@ export default function Patient() {
     setShowModal(true);
   };
 
-  // Save a new patient or update an existing patient
   const handleSavePatient = async (e) => {
     e.preventDefault();
 
     if (editingPatient ? !canEditPatient : !canAddPatient) {
-      showNotification(
-        'You do not have permission to modify patient information.',
-        'error'
-      );
+      showNotification('You do not have permission to modify patient information.', 'error');
       return;
     }
 
-    if (
-      !patientName.trim() ||
-      !species.trim() ||
-      !ownerName.trim()
-    ) {
-      showNotification(
-        'Please fill in Patient Name, Species, and Owner Name.',
-        'error'
-      );
+    if (!patientName.trim() || !species.trim() || !ownerName.trim()) {
+      showNotification('Please fill in Patient Name, Species, and Owner Name.', 'error');
       return;
     }
 
@@ -279,9 +271,7 @@ export default function Patient() {
       const isEditing = editingPatient !== null;
 
       const url = isEditing
-        ? `https://vetstock-backend.onrender.com/api/patients/${encodeURIComponent(
-          editingPatient.patient_id
-        )}`
+        ? `https://vetstock-backend.onrender.com/api/patients/${encodeURIComponent(editingPatient.patient_id)}`
         : 'https://vetstock-backend.onrender.com/api/patients';
 
       const patientData = {
@@ -294,7 +284,9 @@ export default function Patient() {
         appointment_date: appointmentDate || null,
         appointment_time: appointmentTime || null,
         appointment_veterinarian_id: vetId || null,
-        appointment_reason: appointmentReason || null
+        appointment_reason: appointmentReason || null,
+        // Tuwing may appointment date, pinuwersa nating maging 'Scheduled' ang status
+        appointment_status: appointmentDate ? 'Scheduled' : null
       };
 
       const response = await fetch(url, {
@@ -310,42 +302,28 @@ export default function Patient() {
 
       if (response.ok && data.success) {
         showNotification(
-          isEditing
-            ? 'Patient information successfully updated!'
-            : 'Patient successfully added!',
+          isEditing ? 'Patient information successfully updated!' : 'Patient successfully added!',
           'success'
         );
         setShowModal(false);
         setEditingPatient(null);
         resetPatientForm();
-
         await fetchPatients();
       } else {
-        showNotification(
-          data.message || 'Failed to save patient information.',
-          'error'
-        );
+        showNotification(data.message || 'Failed to save patient information.', 'error');
       }
     } catch (err) {
       console.error('Error saving patient:', err);
-      showNotification(
-        'An error occurred. Please check the backend server.',
-        'error'
-      );
+      showNotification('An error occurred. Please check the backend server.', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Update appointment status to Completed or Cancelled
-
   const handleUpdateAppointmentStatus = (pat, newStatus) => {
     if (!canUpdateAppointmentStatus) return;
     if (!pat.appointment_date) {
-      showNotification(
-        'This patient has no appointment to update.',
-        'error'
-      );
+      showNotification('This patient has no appointment to update.', 'error');
       return;
     }
 
@@ -375,40 +353,26 @@ export default function Patient() {
           const data = await response.json();
 
           if (!response.ok || !data.success) {
-            throw new Error(
-              data.message || 'Failed to update appointment status.'
-            );
+            throw new Error(data.message || 'Failed to update appointment status.');
           }
 
-          showNotification(
-            `Appointment marked as ${newStatus}!`,
-            'success'
-          );
-
+          showNotification(`Appointment marked as ${newStatus}!`, 'success');
           await fetchPatients();
-
         } catch (err) {
           console.error('Error updating appointment status:', err);
-
-          showNotification(
-            err.message || 'Could not update the appointment.',
-            'error'
-          );
+          showNotification(err.message || 'Could not update the appointment.', 'error');
         }
       }
     });
   };
 
-
-
-  // Delete (deactivate) a patient after confirmation
-
+  // Soft Delete Patient
   const handleDeletePatient = (pat) => {
     if (!canDeletePatient) return;
     setConfirmation({
-      title: 'Delete Patient?',
-      message: `Are you sure you want to delete ${pat.patient_name}? This patient will be removed from the active patient list, but their historical records will be preserved.`,
-      confirmText: 'Delete Patient',
+      title: 'Move Patient to Recent Deletes?',
+      message: `Are you sure you want to delete ${pat.patient_name}? They will be moved to Recent Deletes and can be restored anytime.`,
+      confirmText: 'Move to Trash',
       variant: 'danger',
       permission: 'delete',
 
@@ -427,34 +391,58 @@ export default function Patient() {
           const data = await response.json();
 
           if (!response.ok || !data.success) {
-            throw new Error(
-              data.message || 'Failed to delete patient.'
-            );
+            throw new Error(data.message || 'Failed to delete patient.');
           }
 
           if (selectedPatient?.patient_id === pat.patient_id) {
             setSelectedPatient(null);
           }
 
-          await fetchPatients();
+          await Promise.all([fetchPatients(), fetchDeletedPatients()]);
 
           showNotification(
-            `${pat.patient_name} was successfully removed from the active patient list.`,
+            `${pat.patient_name} was moved to Recent Deletes.`,
             'success'
           );
-
         } catch (err) {
           console.error('Error deleting patient:', err);
-
-          showNotification(
-            err.message || 'Failed to delete patient. Please try again.',
-            'error'
-          );
+          showNotification(err.message || 'Failed to delete patient. Please try again.', 'error');
         }
       }
     });
   };
 
+  // Restore Deleted Patient
+  const handleRestorePatient = async (pat) => {
+    if (!canDeletePatient || restoringId) return;
+
+    setRestoringId(pat.patient_id);
+    try {
+      const response = await fetch(
+        `https://vetstock-backend.onrender.com/api/patients/${encodeURIComponent(pat.patient_id)}/restore`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to restore patient.');
+      }
+
+      await Promise.all([fetchPatients(), fetchDeletedPatients()]);
+      showNotification(`${pat.patient_name} has been restored to active patients!`, 'success');
+    } catch (err) {
+      console.error('Error restoring patient:', err);
+      showNotification(err.message || 'Could not restore patient.', 'error');
+    } finally {
+      setRestoringId(null);
+    }
+  };
 
   const handleConfirmAction = async () => {
     if (!confirmation || confirming) return;
@@ -468,10 +456,7 @@ export default function Patient() {
 
     if (!hasPermission) {
       setConfirmation(null);
-      showNotification(
-        'You do not have permission to perform this action.',
-        'error'
-      );
+      showNotification('You do not have permission to perform this action.', 'error');
       return;
     }
 
@@ -484,7 +469,6 @@ export default function Patient() {
       setConfirming(false);
     }
   };
-
 
   const filteredPatients = patients.filter(p => {
     const name = p.patient_name || '';
@@ -500,93 +484,51 @@ export default function Patient() {
     );
   });
 
-  // Pagination for Table View only
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredPatients.length / pageSize)
-  );
+  const filteredDeletedPatients = deletedPatients.filter(p => {
+    const name = p.patient_name || '';
+    const owner = p.owner_name || '';
+    const sp = p.species || '';
+    const search = trashSearchTerm.toLowerCase();
 
+    return (
+      name.toLowerCase().includes(search) ||
+      owner.toLowerCase().includes(search) ||
+      sp.toLowerCase().includes(search)
+    );
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredPatients.length / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
-
-  const paginatedPatients = filteredPatients.slice(
-    startIndex,
-    startIndex + pageSize
-  );
+  const paginatedPatients = filteredPatients.slice(startIndex, startIndex + pageSize);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, pageSize]);
 
   const getAppointmentStatus = (pat) => {
-    const savedStatus = String(
-      pat.appointment_status || 'Scheduled'
-    ).trim().toLowerCase();
+    const savedStatus = String(pat.appointment_status || 'Scheduled').trim().toLowerCase();
 
-    // Completed: keep the existing green status
-    if (savedStatus === 'completed') {
-      return 'Completed';
-    }
+    if (savedStatus === 'completed') return 'Completed';
+    if (savedStatus === 'cancelled' || savedStatus === 'canceled') return 'Cancelled';
+    if (savedStatus === 'nonappearance' || savedStatus === 'non-appearance') return 'Nonappearance';
 
-    // Cancelled: keep the existing red status
-    if (
-      savedStatus === 'cancelled' ||
-      savedStatus === 'canceled'
-    ) {
-      return 'Cancelled';
-    }
-
-    // Nonappearance: gray status
-    if (
-      savedStatus === 'nonappearance' ||
-      savedStatus === 'non-appearance'
-    ) {
-      return 'Nonappearance';
-    }
-
-    // Check whether a scheduled appointment has passed
     if (savedStatus === 'scheduled' && pat.appointment_date) {
       const date = String(pat.appointment_date).slice(0, 10);
+      const time = pat.appointment_time ? String(pat.appointment_time).slice(0, 8) : '23:59:59';
+      const appointmentTimestamp = new Date(`${date}T${time}`).getTime();
 
-      // If no time was entered, use the end of the appointment date
-      const time = pat.appointment_time
-        ? String(pat.appointment_time).slice(0, 8)
-        : '23:59:59';
-
-      const appointmentTimestamp = new Date(
-        `${date}T${time}`
-      ).getTime();
-
-      if (
-        Number.isFinite(appointmentTimestamp) &&
-        appointmentTimestamp < currentTime
-      ) {
+      if (Number.isFinite(appointmentTimestamp) && appointmentTimestamp < currentTime) {
         return 'Nonappearance';
       }
     }
 
-    // Scheduled: keep the existing yellow status
     return 'Scheduled';
   };
 
-  // Count only patients with an actual appointment date
-  const appointmentPatients = patients.filter(
-    p => p.appointment_date
-  );
-
-  // Count scheduled appointments
-  const scheduledCount = appointmentPatients.filter(
-    p => getAppointmentStatus(p) === 'Scheduled'
-  ).length;
-
-  // Count nonappearance appointments
-  const nonappearanceCount = appointmentPatients.filter(
-    p => getAppointmentStatus(p) === 'Nonappearance'
-  ).length;
-
-  // Count cancelled appointments
-  const cancelledCount = appointmentPatients.filter(
-    p => getAppointmentStatus(p) === 'Cancelled'
-  ).length;
+  const appointmentPatients = patients.filter(p => p.appointment_date);
+  const scheduledCount = appointmentPatients.filter(p => getAppointmentStatus(p) === 'Scheduled').length;
+  const nonappearanceCount = appointmentPatients.filter(p => getAppointmentStatus(p) === 'Nonappearance').length;
+  const cancelledCount = appointmentPatients.filter(p => getAppointmentStatus(p) === 'Cancelled').length;
 
   return (
     <div className="patient-page">
@@ -597,25 +539,39 @@ export default function Patient() {
           onClose={() => setNotification(null)}
         />
       )}
+
       {/* Page Header */}
       <div className="patient-header">
         <div>
           <h2>Patients & Appointments</h2>
           <p>Manage veterinary patients, species records, and upcoming schedules in real-time.</p>
         </div>
-        {!userRoleLoading && canAddPatient && (
-          <button className="add-btn" onClick={openAddModal}>
-            <i className="fa-solid fa-paw"></i> Add Patient
-          </button>
-        )}
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {!userRoleLoading && canDeletePatient && (
+            <button
+              type="button"
+              className="add-btn"
+              style={{ backgroundColor: '#64748b' }}
+              onClick={() => {
+                fetchDeletedPatients();
+                setShowTrashModal(true);
+              }}
+            >
+              <i className="fa-solid fa-trash-arrow-up"></i> Recent Deletes ({deletedPatients.length})
+            </button>
+          )}
+
+          {!userRoleLoading && canAddPatient && (
+            <button className="add-btn" onClick={openAddModal}>
+              <i className="fa-solid fa-paw"></i> Add Patient
+            </button>
+          )}
+        </div>
       </div>
-
-
 
       {/* Quick Stats */}
       <div className="patient-stats">
-
-        {/* Total Patients */}
         <div className="stat-card">
           <div className="stat-icon purple">
             <i className="fa-solid fa-shield-dog"></i>
@@ -626,7 +582,6 @@ export default function Patient() {
           </div>
         </div>
 
-        {/* Scheduled Appointments */}
         <div className="stat-card">
           <div className="stat-icon green">
             <i className="fa-solid fa-calendar-check"></i>
@@ -637,7 +592,6 @@ export default function Patient() {
           </div>
         </div>
 
-        {/* Nonappearance */}
         <div className="stat-card">
           <div className="stat-icon orange">
             <i className="fa-solid fa-user-xmark"></i>
@@ -648,7 +602,6 @@ export default function Patient() {
           </div>
         </div>
 
-        {/* Cancelled Appointments */}
         <div className="stat-card">
           <div className="stat-icon red">
             <i className="fa-solid fa-calendar-xmark"></i>
@@ -658,9 +611,7 @@ export default function Patient() {
             <p>Cancelled Appointments</p>
           </div>
         </div>
-
       </div>
-
 
       {/* Toolbar: Search and View Toggle */}
       <div className="patient-toolbar">
@@ -692,7 +643,7 @@ export default function Patient() {
         </div>
       </div>
 
-      {/* Unique Content View */}
+      {/* Main Content View */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
           <i className="fa-solid fa-spinner fa-spin fa-2x"></i>
@@ -731,8 +682,7 @@ export default function Patient() {
 
                     <div className="patient-info-row">
                       <span>
-                        <i className="fa-solid fa-id-card"></i>{' '}
-                        #{pat.patient_id.substring(0, 8)}
+                        <i className="fa-solid fa-id-card"></i> #{pat.patient_id.substring(0, 8)}
                       </span>
                       <span>
                         <i className="fa-solid fa-user"></i> {pat.owner_name}
@@ -756,46 +706,39 @@ export default function Patient() {
                         marginTop: '12px'
                       }}
                     >
-                      {/* Complete */}
-                      {canUpdateAppointmentStatus && pat.appointment_date &&
-                        status === 'Scheduled' && (
-                          <button
-                            type="button"
-                            className="patient-action-btn complete"
-                            title="Complete Appointment"
-                            aria-label="Complete Appointment"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleUpdateAppointmentStatus(pat, 'Completed');
-                            }}
-                          >
-                            <i className="fa-solid fa-check"></i>
-                          </button>
-                        )}
+                      {canUpdateAppointmentStatus && pat.appointment_date && status === 'Scheduled' && (
+                        <button
+                          type="button"
+                          className="patient-action-btn complete"
+                          title="Mark as Completed"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUpdateAppointmentStatus(pat, 'Completed');
+                          }}
+                        >
+                          <i className="fa-solid fa-check"></i>
+                        </button>
+                      )}
 
-                      {/* Cancel */}
-                      {canUpdateAppointmentStatus && pat.appointment_date &&
-                        status === 'Scheduled' && (
-                          <button
-                            type="button"
-                            className="patient-action-btn cancel"
-                            title="Cancel Appointment"
-                            aria-label="Cancel Appointment"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleUpdateAppointmentStatus(pat, 'Cancelled');
-                            }}
-                          >
-                            <i className="fa-solid fa-xmark"></i>
-                          </button>
-                        )}
-                      {/* Edit */}
+                      {canUpdateAppointmentStatus && pat.appointment_date && status === 'Scheduled' && (
+                        <button
+                          type="button"
+                          className="patient-action-btn cancel"
+                          title="Mark as Cancelled"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUpdateAppointmentStatus(pat, 'Cancelled');
+                          }}
+                        >
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      )}
+
                       {canEditPatient && (
                         <button
                           type="button"
                           className="patient-action-btn edit"
                           title="Edit Patient"
-                          aria-label="Edit Patient"
                           onClick={(e) => {
                             e.stopPropagation();
                             openEditModal(pat);
@@ -805,12 +748,10 @@ export default function Patient() {
                         </button>
                       )}
 
-                      {/* Delete */}
                       {canDeletePatient && (
                         <button
                           type="button"
                           title="Delete Patient"
-                          aria-label="Delete Patient"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeletePatient(pat);
@@ -871,21 +812,12 @@ export default function Patient() {
                           </span>
                         </td>
                         <td>
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px'
-                            }}
-                          >
-
-                            {/* Complete */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             {canUpdateAppointmentStatus && pat.appointment_date && status === 'Scheduled' && (
                               <button
                                 type="button"
                                 className="patient-action-btn complete"
-                                title="Complete Appointment"
-                                aria-label="Complete Appointment"
+                                title="Mark as Completed"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleUpdateAppointmentStatus(pat, 'Completed');
@@ -895,13 +827,11 @@ export default function Patient() {
                               </button>
                             )}
 
-                            {/* Cancel */}
                             {canUpdateAppointmentStatus && pat.appointment_date && status === 'Scheduled' && (
                               <button
                                 type="button"
                                 className="patient-action-btn cancel"
-                                title="Cancel Appointment"
-                                aria-label="Cancel Appointment"
+                                title="Mark as Cancelled"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleUpdateAppointmentStatus(pat, 'Cancelled');
@@ -910,14 +840,12 @@ export default function Patient() {
                                 <i className="fa-solid fa-xmark"></i>
                               </button>
                             )}
-                            {/* Edit */}
 
                             {canEditPatient && (
                               <button
                                 type="button"
                                 className="patient-action-btn edit"
                                 title="Edit Patient"
-                                aria-label="Edit Patient"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   openEditModal(pat);
@@ -927,12 +855,10 @@ export default function Patient() {
                               </button>
                             )}
 
-                            {/* Delete */}
                             {canDeletePatient && (
                               <button
                                 type="button"
                                 title="Delete Patient"
-                                aria-label="Delete Patient"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDeletePatient(pat);
@@ -949,9 +875,7 @@ export default function Patient() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="8" className="no-data">
-                      No patients found in database.
-                    </td>
+                    <td colSpan="8" className="no-data">No patients found in database.</td>
                   </tr>
                 )}
               </tbody>
@@ -962,7 +886,6 @@ export default function Patient() {
           <div className="patient-pagination">
             <div className="patient-pagination-size">
               <label htmlFor="patient-page-size">Rows per page:</label>
-
               <select
                 id="patient-page-size"
                 value={pageSize}
@@ -979,10 +902,7 @@ export default function Patient() {
               Showing{' '}
               {filteredPatients.length === 0
                 ? '0–0'
-                : `${startIndex + 1}–${Math.min(
-                  startIndex + pageSize,
-                  filteredPatients.length
-                )}`}
+                : `${startIndex + 1}–${Math.min(startIndex + pageSize, filteredPatients.length)}`}
               {' '}of {filteredPatients.length} patients
             </span>
 
@@ -990,281 +910,352 @@ export default function Patient() {
               <button
                 type="button"
                 disabled={currentPage === 1}
-                onClick={() =>
-                  setCurrentPage((prev) => Math.max(1, prev - 1))
-                }
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
               >
                 Previous
               </button>
 
-              <span>
-                Page {currentPage} of {totalPages}
-              </span>
+              <span>Page {currentPage} of {totalPages}</span>
 
               <button
                 type="button"
                 disabled={currentPage >= totalPages}
-                onClick={() =>
-                  setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-                }
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
               >
                 Next
               </button>
             </div>
           </div>
         </>
-      )
-      }
+      )}
 
-      {/* Modal for Add Patient */}
-      {
-        showModal && (canAddPatient || (editingPatient && canEditPatient)) && (
-          <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-            <div className="modal-content" style={{ background: '#fff', padding: '24px', borderRadius: '8px', width: '500px', maxWidth: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
-              <div
-                className="modal-header"
-                style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  alignItems: 'center',
-                  position: 'relative',
-                  width: '100%',
-                  minHeight: '42px',
-                  marginBottom: '20px'
-                }}
-              >
-                <h3
-                  style={{
-                    position: 'absolute',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    margin: 0,
-                    textAlign: 'center',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {editingPatient
-                    ? 'Edit Patient & Appointment'
-                    : 'Add New Patient & Appointment'}
+      {/* RECENT DELETES / TRASH MODAL */}
+      {showTrashModal && canDeletePatient && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowTrashModal(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1150
+          }}
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              padding: '24px',
+              borderRadius: '12px',
+              width: '700px',
+              maxWidth: '92%',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#0f172a', fontSize: '18px' }}>
+                  <i className="fa-solid fa-trash-arrow-up" style={{ color: '#64748b', marginRight: '8px' }}></i>
+                  Recent Deletes (Patients)
                 </h3>
-
-                <button
-                  type="button"
-                  className="close-btn"
-                  onClick={() => setShowModal(false)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    fontSize: '20px',
-                    cursor: 'pointer',
-                    flexShrink: 0
-                  }}
-                >
-                  &times;
-                </button>
+                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
+                  Restore accidentally removed patients back to the active patient list.
+                </p>
               </div>
-              <form onSubmit={handleSavePatient}>
-                <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Patient Name *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Shiro"
-                    value={patientName}
-                    onChange={(e) => setPatientName(e.target.value)}
-                    required
-                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                  />
+              <button
+                type="button"
+                onClick={() => setShowTrashModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#64748b' }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Search inside Trash */}
+            <div style={{ marginBottom: '14px', position: 'relative' }}>
+              <input
+                type="text"
+                placeholder="Search deleted patient name, species, or owner..."
+                value={trashSearchTerm}
+                onChange={(e) => setTrashSearchTerm(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '13px'
+                }}
+              />
+            </div>
+
+            {/* Trash List */}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {deletedLoading ? (
+                <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                  <i className="fa-solid fa-spinner fa-spin fa-lg"></i>
+                  <p style={{ fontSize: '13px', marginTop: '8px' }}>Loading deleted patients...</p>
                 </div>
-
-
-                <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Species *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Dog, Cat..."
-                    value={species}
-                    onChange={(e) => setSpecies(e.target.value)}
-                    required
-                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                  />
+              ) : filteredDeletedPatients.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
+                  <i className="fa-solid fa-box-open" style={{ fontSize: '28px', marginBottom: '8px', color: '#94a3b8' }}></i>
+                  <p style={{ margin: 0, fontSize: '14px' }}>No deleted patients found.</p>
                 </div>
-                <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      marginBottom: '4px',
-                      fontSize: '13px',
-                      fontWeight: '500'
-                    }}
-                  >
-                    Gender
-                  </label>
-
-                  <select
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '4px',
-                      border: '1px solid #cbd5e1',
-                      backgroundColor: '#ffffff',
-                      color: '#000000'
-                    }}
-                  >
-                    <option value="">Select Gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                  </select>
-                </div>
-
-                <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Owner Name *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Allen"
-                    value={ownerName}
-                    onChange={(e) => setOwnerName(e.target.value)}
-                    required
-                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                  />
-                </div>
-
-                <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Owner Phone</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., 09123456789"
-                    value={ownerPhone}
-                    onChange={(e) => setOwnerPhone(e.target.value)}
-                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                  />
-                </div>
-
-                <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      marginBottom: '4px',
-                      fontSize: '13px',
-                      fontWeight: '500'
-                    }}
-                  >
-                    Owner Email
-                  </label>
-
-                  <input
-                    type="email"
-                    placeholder="e.g., owner@example.com"
-                    value={ownerEmail}
-                    onChange={(e) => setOwnerEmail(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '4px',
-                      border: '1px solid #cbd5e1'
-                    }}
-                  />
-                </div>
-
-                <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Appointment Date</label>
-                  <input
-                    type="date"
-                    value={appointmentDate}
-                    min={getTodayManilaDate()}
-                    onChange={(e) => setAppointmentDate(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '4px',
-                      border: '1px solid #cbd5e1'
-                    }}
-                  />
-                </div>
-
-                <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Appointment Time</label>
-                  <input
-                    type="time"
-                    value={appointmentTime}
-                    onChange={(e) => setAppointmentTime(e.target.value)}
-                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                  />
-                </div>
-
-                <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      marginBottom: '4px',
-                      fontSize: '13px',
-                      fontWeight: '500'
-                    }}
-                  >
-                    Veterinarian Name
-                  </label>
-
-                  <select
-                    value={vetId}
-                    onChange={(e) => setVetId(e.target.value)}
-                    disabled={veterinarianLoading}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '4px',
-                      border: '1px solid #cbd5e1',
-                      backgroundColor: '#ffffff',
-                      color: '#000000'
-                    }}
-                  >
-                    <option value="">
-                      {veterinarianLoading
-                        ? 'Loading veterinarians...'
-                        : 'Select Veterinarian'}
-                    </option>
-
-                    {veterinarians.map((vet) => (
-                      <option key={vet.user_id} value={vet.user_id}>
-                        {vet.full_name}
-                      </option>
+              ) : (
+                <table className="modern-table" style={{ width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th>Patient ID</th>
+                      <th>Patient Name</th>
+                      <th>Species</th>
+                      <th>Owner</th>
+                      <th style={{ textAlign: 'center' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredDeletedPatients.map((pat) => (
+                      <tr key={pat.patient_id}>
+                        <td><span className="item-id">#{pat.patient_id.substring(0, 8)}</span></td>
+                        <td><strong>{pat.patient_name}</strong></td>
+                        <td><span className="species-tag">{pat.species}</span></td>
+                        <td>{pat.owner_name}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            disabled={restoringId === pat.patient_id}
+                            onClick={() => handleRestorePatient(pat)}
+                            style={{
+                              padding: '6px 12px',
+                              background: '#0d9488',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              opacity: restoringId === pat.patient_id ? 0.6 : 1
+                            }}
+                          >
+                            <i className="fa-solid fa-rotate-left" style={{ marginRight: '5px' }}></i>
+                            {restoringId === pat.patient_id ? 'Restoring...' : 'Restore'}
+                          </button>
+                        </td>
+                      </tr>
                     ))}
-                  </select>
-
-                  {veterinarianError && (
-                    <p style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}>
-                      {veterinarianError}
-                    </p>
-                  )}
-                </div>
-
-                <div className="form-group" style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Appointment Reason</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Checkup, Vaccine..."
-                    value={appointmentReason}
-                    onChange={(e) => setAppointmentReason(e.target.value)}
-                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                  />
-                </div>
-
-                <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                  <button type="button" className="cancel-btn" onClick={() => setShowModal(false)} style={{ padding: '8px 16px', background: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
-                  <button type="submit" className="submit-btn" disabled={submitting} style={{ padding: '8px 16px', background: '#0d9488', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                    {submitting
-                      ? 'Saving...'
-                      : editingPatient
-                        ? 'Save Changes'
-                        : 'Save Patient'}
-                  </button>
-                </div>
-              </form>
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
-        )
-      }
+        </div>
+      )}
 
+      {/* Modal for Add/Edit Patient */}
+      {showModal && (canAddPatient || (editingPatient && canEditPatient)) && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div className="modal-content" style={{ background: '#fff', padding: '24px', borderRadius: '8px', width: '500px', maxWidth: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div
+              className="modal-header"
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+                position: 'relative',
+                width: '100%',
+                minHeight: '42px',
+                marginBottom: '20px'
+              }}
+            >
+              <h3
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  margin: 0,
+                  textAlign: 'center',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {editingPatient ? 'Edit Patient & Appointment' : 'Add New Patient & Appointment'}
+              </h3>
+
+              <button
+                type="button"
+                className="close-btn"
+                onClick={() => setShowModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  flexShrink: 0
+                }}
+              >
+                &times;
+              </button>
+            </div>
+            <form onSubmit={handleSavePatient}>
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Patient Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Shiro"
+                  value={patientName}
+                  onChange={(e) => setPatientName(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Species *</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Dog, Cat..."
+                  value={species}
+                  onChange={(e) => setSpecies(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Gender</label>
+                <select
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: '#ffffff',
+                    color: '#000000'
+                  }}
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Owner Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Allen"
+                  value={ownerName}
+                  onChange={(e) => setOwnerName(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Owner Phone</label>
+                <input
+                  type="text"
+                  placeholder="e.g., 09123456789"
+                  value={ownerPhone}
+                  onChange={(e) => setOwnerPhone(e.target.value)}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Owner Email</label>
+                <input
+                  type="email"
+                  placeholder="e.g., owner@example.com"
+                  value={ownerEmail}
+                  onChange={(e) => setOwnerEmail(e.target.value)}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Appointment Date</label>
+                <input
+                  type="date"
+                  value={appointmentDate}
+                  min={getTodayManilaDate()}
+                  onChange={(e) => setAppointmentDate(e.target.value)}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Appointment Time</label>
+                <input
+                  type="time"
+                  value={appointmentTime}
+                  onChange={(e) => setAppointmentTime(e.target.value)}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Veterinarian Name</label>
+                <select
+                  value={vetId}
+                  onChange={(e) => setVetId(e.target.value)}
+                  disabled={veterinarianLoading}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: '#ffffff',
+                    color: '#000000'
+                  }}
+                >
+                  <option value="">
+                    {veterinarianLoading ? 'Loading veterinarians...' : 'Select Veterinarian'}
+                  </option>
+                  {veterinarians.map((vet) => (
+                    <option key={vet.user_id} value={vet.user_id}>
+                      {vet.full_name}
+                    </option>
+                  ))}
+                </select>
+
+                {veterinarianError && (
+                  <p style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}>
+                    {veterinarianError}
+                  </p>
+                )}
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: '500' }}>Appointment Reason</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Checkup, Vaccine..."
+                  value={appointmentReason}
+                  onChange={(e) => setAppointmentReason(e.target.value)}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                />
+              </div>
+
+              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button type="button" className="cancel-btn" onClick={() => setShowModal(false)} style={{ padding: '8px 16px', background: '#e2e8f0', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" className="submit-btn" disabled={submitting} style={{ padding: '8px 16px', background: '#0d9488', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                  {submitting ? 'Saving...' : editingPatient ? 'Save Changes' : 'Save Patient'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* CUSTOM CONFIRMATION MODAL */}
       {confirmation && (
@@ -1304,12 +1295,8 @@ export default function Patient() {
                   width: '55px',
                   height: '55px',
                   borderRadius: '50%',
-                  background: confirmation.variant === 'danger'
-                    ? '#fee2e2'
-                    : '#ccfbf1',
-                  color: confirmation.variant === 'danger'
-                    ? '#dc2626'
-                    : '#0d9488',
+                  background: confirmation.variant === 'danger' ? '#fee2e2' : '#ccfbf1',
+                  color: confirmation.variant === 'danger' ? '#dc2626' : '#0d9488',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1317,10 +1304,7 @@ export default function Patient() {
                   fontSize: '24px'
                 }}
               >
-                <i className={`fa-solid ${confirmation.variant === 'danger'
-                  ? 'fa-trash'
-                  : 'fa-calendar-check'
-                  }`}></i>
+                <i className={`fa-solid ${confirmation.variant === 'danger' ? 'fa-trash' : 'fa-calendar-check'}`}></i>
               </div>
 
               <h3 style={{ color: '#1f2937', margin: '0 0 10px' }}>
@@ -1332,11 +1316,7 @@ export default function Patient() {
               </p>
             </div>
 
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: '10px'
-            }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
               <button
                 type="button"
                 disabled={confirming}
@@ -1360,9 +1340,7 @@ export default function Patient() {
                 onClick={handleConfirmAction}
                 style={{
                   padding: '10px 18px',
-                  background: confirmation.variant === 'danger'
-                    ? '#dc2626'
-                    : '#0d9488',
+                  background: confirmation.variant === 'danger' ? '#dc2626' : '#0d9488',
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: '7px',
@@ -1378,226 +1356,192 @@ export default function Patient() {
         </div>
       )}
 
-
       {/* Patient Details Modal */}
-      {
-        selectedPatient && (
+      {selectedPatient && (
+        <div
+          className="modal-overlay"
+          onClick={() => setSelectedPatient(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1100
+          }}
+        >
           <div
-            className="modal-overlay"
-            onClick={() => setSelectedPatient(null)}
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
             style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              background: 'rgba(0,0,0,0.5)',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              zIndex: 1100
+              background: '#fff',
+              padding: '24px',
+              borderRadius: '12px',
+              width: '600px',
+              maxWidth: '90%',
+              maxHeight: '85vh',
+              overflowY: 'auto'
             }}
           >
             <div
-              className="modal-content"
-              onClick={(e) => e.stopPropagation()}
+              className="modal-header"
               style={{
-                background: '#fff',
-                padding: '24px',
-                borderRadius: '12px',
-                width: '600px',
-                maxWidth: '90%',
-                maxHeight: '85vh',
-                overflowY: 'auto'
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                position: 'relative',
+                marginBottom: '20px'
               }}
             >
-              {/* Modal Header */}
-              <div
-                className="modal-header"
-                style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  marginBottom: '20px'
-                }}
-              >
-                <div>
-                  <h3 style={{ margin: 0, color: '#0f172a' }}>
-                    Patient Details
-                  </h3>
-                  <p style={{ margin: '6px 0 0', color: '#64748b' }}>
-                    Complete patient information
-                  </p>
-                </div>
-
+              <div style={{ textAlign: 'center' }}>
+                <h3 style={{ margin: 0, color: '#0f172a' }}>Patient Details</h3>
+                <p style={{ margin: '6px 0 0', color: '#64748b' }}>Complete patient information</p>
               </div>
-              {/* Patient Name */}
-              <div
+              <button
+                type="button"
+                onClick={() => setSelectedPatient(null)}
                 style={{
-                  background: '#f0fdfa',
-                  padding: '16px',
-                  borderRadius: '8px',
-                  marginBottom: '20px'
+                  position: 'absolute',
+                  right: 0,
+                  top: 0,
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '22px',
+                  cursor: 'pointer',
+                  color: '#64748b'
                 }}
               >
-                <h2 style={{ margin: '0 0 6px', color: '#0f766e' }}>
-                  {selectedPatient.patient_name || 'Unnamed Patient'}
-                </h2>
-                <p style={{ margin: 0, color: '#475569' }}>
-                  {selectedPatient.species || 'Species not specified'}
-                </p>
-              </div>
+                &times;
+              </button>
+            </div>
 
-              {/* All fields returned by the backend */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                  gap: '14px'
-                }}
-              >
-                {Object.entries(selectedPatient)
-                  .filter(([key]) => ![
-                    'patient_id',
-                    'clinic_id',
-                    'breed',
-                    'date_of_birth',
-                    'is_neutered',
-                    'is_active',
-                    'appointment_veterinarian_id'
-                  ].includes(key))
-                  .map(([key, value]) => {
-                    const fieldLabels = {
-                      patient_number: 'Patient ID',
-                      mrn_number: 'Record Number',
-                      appointment_veterinarian_name: 'Veterinarian Name',
-                      created_at: 'Created At',
-                      updated_at: 'Updated At'
-                    };
+            <div
+              style={{
+                background: '#f0fdfa',
+                padding: '16px',
+                borderRadius: '8px',
+                marginBottom: '20px'
+              }}
+            >
+              <h2 style={{ margin: '0 0 6px', color: '#0f766e' }}>
+                {selectedPatient.patient_name || 'Unnamed Patient'}
+              </h2>
+              <p style={{ margin: 0, color: '#475569' }}>
+                {selectedPatient.species || 'Species not specified'}
+              </p>
+            </div>
 
-                    const label = fieldLabels[key] ||
-                      key.replace(/_/g, ' ')
-                        .replace(/\b\w/g, char => char.toUpperCase());
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '14px'
+              }}
+            >
+              {Object.entries(selectedPatient)
+                .filter(([key]) => ![
+                  'patient_id',
+                  'clinic_id',
+                  'breed',
+                  'date_of_birth',
+                  'is_neutered',
+                  'is_active',
+                  'appointment_veterinarian_id'
+                ].includes(key))
+                .map(([key, value]) => {
+                  const fieldLabels = {
+                    patient_number: 'Patient ID',
+                    mrn_number: 'Record Number',
+                    appointment_veterinarian_name: 'Veterinarian Name',
+                    created_at: 'Created At',
+                    updated_at: 'Updated At'
+                  };
 
-                    let displayValue;
+                  const label = fieldLabels[key] ||
+                    key.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
 
-                    if (value === null || value === undefined || value === '') {
-                      displayValue = 'N/A';
-                    } else if (key === 'patient_number') {
-                      displayValue = String(value).padStart(4, '0');
-                    } else if (key === 'appointment_status') {
-                      displayValue = getAppointmentStatus(selectedPatient);
-                    } else if (key === 'created_at' || key === 'updated_at') {
-                      const date = new Date(value);
+                  let displayValue;
 
-                      displayValue = Number.isNaN(date.getTime())
-                        ? String(value)
-                        : `${date.toLocaleTimeString('en-US', {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          hour12: true
-                        })} ${date.toLocaleDateString('en-US')}`;
-                    } else if (key === 'appointment_date') {
-                      const dateString = String(value).slice(0, 10);
-                      const date = new Date(`${dateString}T00:00:00`);
+                  if (value === null || value === undefined || value === '') {
+                    displayValue = 'N/A';
+                  } else if (key === 'patient_number') {
+                    displayValue = String(value).padStart(4, '0');
+                  } else if (key === 'appointment_status') {
+                    displayValue = getAppointmentStatus(selectedPatient);
+                  } else if (key === 'created_at' || key === 'updated_at') {
+                    const date = new Date(value);
+                    displayValue = Number.isNaN(date.getTime())
+                      ? String(value)
+                      : `${date.toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })} ${date.toLocaleDateString('en-US')}`;
+                  } else if (key === 'appointment_date') {
+                    const dateString = String(value).slice(0, 10);
+                    const date = new Date(`${dateString}T00:00:00`);
+                    displayValue = Number.isNaN(date.getTime())
+                      ? String(value)
+                      : date.toLocaleDateString('en-US');
+                  } else if (Array.isArray(value)) {
+                    displayValue = value.length ? value.join(', ') : 'N/A';
+                  } else if (typeof value === 'object') {
+                    displayValue = JSON.stringify(value);
+                  } else {
+                    displayValue = String(value);
+                  }
 
-                      displayValue = Number.isNaN(date.getTime())
-                        ? String(value)
-                        : date.toLocaleDateString('en-US');
-                    } else if (Array.isArray(value)) {
-                      displayValue = value.length ? value.join(', ') : 'N/A';
-                    } else if (typeof value === 'object') {
-                      displayValue = JSON.stringify(value);
-                    } else {
-                      displayValue = String(value);
-                    }
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        padding: '12px',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        minWidth: 0
+                      }}
+                    >
+                      <p style={{ margin: '0 0 6px', fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
+                        {label}
+                      </p>
+                      <p style={{ margin: 0, fontSize: '14px', color: '#0f172a', overflowWrap: 'anywhere' }}>
+                        {displayValue}
+                      </p>
+                    </div>
+                  );
+                })}
+            </div>
 
-                    return (
-                      <div
-                        key={key}
-                        style={{
-                          padding: '12px',
-                          background: '#f8fafc',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '8px',
-                          minWidth: 0
-                        }}
-                      >
-                        <p
-                          style={{
-                            margin: '0 0 6px',
-                            fontSize: '12px',
-                            color: '#64748b',
-                            fontWeight: '600'
-                          }}
-                        >
-                          {label}
-                        </p>
-
-                        <p
-                          style={{
-                            margin: 0,
-                            fontSize: '14px',
-                            color: '#0f172a',
-                            overflowWrap: 'anywhere'
-                          }}
-                        >
-                          {displayValue}
-                        </p>
-                      </div>
-                    );
-                  })}
-              </div>
-
-              {/* Modal Actions */}
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  gap: '10px',
-                  marginTop: '24px'
-                }}
-              >
-                {canEditPatient && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const patient = selectedPatient;
-                      setSelectedPatient(null);
-                      openEditModal(patient);
-                    }}
-                    style={{
-                      padding: '9px 16px',
-                      background: '#0d9488',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <i className="fa-solid fa-pen"></i> Edit Patient
-                  </button>
-                )}
-
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '24px' }}>
+              {canEditPatient && (
                 <button
                   type="button"
-                  onClick={() => setSelectedPatient(null)}
+                  onClick={() => {
+                    const patient = selectedPatient;
+                    setSelectedPatient(null);
+                    openEditModal(patient);
+                  }}
                   style={{
                     padding: '9px 16px',
-                    background: '#e2e8f0',
-                    color: '#334155',
+                    background: '#0d9488',
+                    color: '#fff',
                     border: 'none',
                     borderRadius: '6px',
                     cursor: 'pointer'
                   }}
                 >
-                  Close
+                  <i className="fa-solid fa-pen"></i> Edit Patient
                 </button>
-              </div>
+              )}
             </div>
           </div>
-        )
-      }
-    </div >
+        </div>
+      )}
+    </div>
   );
 }

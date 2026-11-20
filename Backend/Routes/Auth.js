@@ -6,7 +6,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "node:crypto";
 
-import { sendPasswordResetEmail, sendRegistrationRejectionEmail } from "../Utils/EmailService.js";
+import { sendPasswordResetEmail, sendRegistrationRejectionEmail, sendRegistrationApprovalEmail } from "../Utils/EmailService.js";
 import { supabase } from "../VetStockDatabase/Supabase.js";
 import { createAuditLog } from "../Utils/AuditLogger.js";
 import { authenticateToken } from "../Middleware/Authentication.js";
@@ -401,9 +401,32 @@ router.post(
                 }
             });
 
+            // ----------------------------------------------------
+            // SEND APPROVAL NOTIFICATION EMAIL TO THE USER
+            // ----------------------------------------------------
+            let emailSent = false;
+
+            try {
+                await sendRegistrationApprovalEmail(
+                    request.email,
+                    request.first_name,
+                    roleData.role_name
+                );
+
+                emailSent = true;
+            } catch (emailError) {
+                console.error(
+                    "Registration approval email error:",
+                    emailError.message
+                );
+            }
+
             return res.json({
                 success: true,
-                message: "Registration request approved successfully.",
+                message: emailSent
+                    ? "Registration request approved and email notification sent successfully."
+                    : "Registration request approved, but the email notification could not be sent.",
+                email_sent: emailSent,
                 user_id: newUserId
             });
 

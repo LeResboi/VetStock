@@ -1,4 +1,3 @@
-
 import "dotenv/config";
 import nodemailer from "nodemailer";
 
@@ -148,6 +147,89 @@ VetStock Administration
                 </p>
 
                 <hr />
+
+                <p style="color:gray;font-size:12px;">
+                    VetStock Veterinary Inventory Management System
+                </p>
+
+            </div>
+        `
+    };
+
+    return await transporter.sendMail(mailOptions);
+};
+
+// ============================================================
+// SEND REGISTRATION APPROVAL EMAIL
+// ============================================================
+
+export const sendRegistrationApprovalEmail = async (
+    email,
+    firstName,
+    assignedRole
+) => {
+    const safeName = escapeHtml(firstName);
+    const safeRole = escapeHtml(assignedRole);
+    const loginLink = `${process.env.FRONTEND_URL || "http://localhost:3000"}/login`;
+
+    const mailOptions = {
+        from: `"VetStock System" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: "VetStock - Registration Request Approved!",
+
+        text: `
+Hello ${firstName},
+
+Good news! Your VetStock registration request has been approved by the administrator.
+
+Your assigned role: ${assignedRole}
+
+You can now log in to your account using the link below:
+${loginLink}
+
+Welcome to VetStock!
+
+VetStock Administration
+        `,
+
+        html: `
+            <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#333;">
+
+                <h2 style="color:#00796b;">VetStock</h2>
+
+                <h3>Registration Request Approved!</h3>
+
+                <p>Hello ${safeName},</p>
+
+                <p>
+                    Good news! Your VetStock registration request has been approved by the administrator.
+                </p>
+
+                <div style="
+                    background-color:#e6f4ea;
+                    border-left:4px solid #137333;
+                    padding:15px;
+                    margin:20px 0;
+                    border-radius:4px;
+                ">
+                    <strong style="color:#137333;">
+                        Assigned Role:
+                    </strong>
+                    <p style="margin-bottom:0;">
+                        ${safeRole}
+                    </p>
+                </div>
+
+                <p>
+                    You can now log in and start using your account:
+                </p>
+
+                <a href="${loginLink}"
+                   style="display:inline-block;background-color:#00796b;color:white;padding:12px 24px;text-decoration:none;border-radius:5px;font-weight:bold;margin:10px 0;">
+                    Log In Now
+                </a>
+
+                <hr style="margin-top:20px;" />
 
                 <p style="color:gray;font-size:12px;">
                     VetStock Veterinary Inventory Management System

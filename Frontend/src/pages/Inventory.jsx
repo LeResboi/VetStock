@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useReactToPrint } from 'react-to-print';
 import Notification from '../components/Notification';
 import './Inventory.css';
 
@@ -37,6 +38,13 @@ export default function Inventory() {
   const [refreshInventory, setRefreshInventory] = useState(0);
   const [pageSize, setPageSize] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Print ref setup
+  const componentRef = useRef();
+  const handlePrint = useReactToPrint({
+    contentRef: componentRef,
+    documentTitle: 'VetStock_Inventory_Report',
+  });
 
   const initialFormData = {
     item_name: '',
@@ -367,11 +375,12 @@ export default function Inventory() {
   }, [searchTerm, filterCategory, pageSize]);
 
   const totalItems = safeInventory.length;
+  
   const lowStockItems = safeInventory.filter(i => {
     const quantity = Number(i.quantity) || 0;
-    const minStock = Number(i.minStock ?? 10);
+    const minStock = Number(i.minStock ?? i.reorder_point ?? 10);
 
-    return quantity > 0 && quantity <= minStock;
+    return quantity <= minStock;
   }).length;
 
   return (
@@ -388,18 +397,40 @@ export default function Inventory() {
           <h2>Inventory Management</h2>
           <p>Real-time tracking of veterinary medicines, supplies, and stock levels from Supabase.</p>
         </div>
-        {!roleLoading && canManageInventory && (
+        <div style={{ display: 'flex', gap: '10px' }}>
           <button
             type="button"
-            className="add-btn"
-            onClick={() => {
-              setAddError('');
-              setShowAddModal(true);
+            onClick={handlePrint}
+            style={{
+              backgroundColor: '#0f766e',
+              color: 'white',
+              border: 'none',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
             }}
           >
-            <i className="fa-solid fa-plus"></i> Add New Item
+            <i className="fa-solid fa-print"></i> Print / Save PDF
           </button>
-        )}
+
+          {!roleLoading && canManageInventory && (
+            <button
+              type="button"
+              className="add-btn"
+              onClick={() => {
+                setAddError('');
+                setShowAddModal(true);
+              }}
+            >
+              <i className="fa-solid fa-plus"></i> Add New Item
+            </button>
+          )}
+        </div>
       </div>
 
       {showAddModal && canManageInventory && (
@@ -778,10 +809,7 @@ export default function Inventory() {
         </div>
       )}
 
-      {/* ============================================================
-        EDIT INVENTORY MODAL
-        ============================================================ */}
-
+      {/* EDIT INVENTORY MODAL */}
       {showEditModal && selectedItem && canManageInventory && (
         <div
           className="modal-overlay"
@@ -962,10 +990,7 @@ export default function Inventory() {
         </div>
       )}
 
-      {/* ============================================================
-    DELETE INVENTORY CONFIRMATION MODAL
-============================================================ */}
-
+      {/* DELETE INVENTORY CONFIRMATION MODAL */}
       {showDeleteModal && selectedItem && canManageInventory && (
         <div
           className="modal-overlay"
@@ -1026,10 +1051,11 @@ export default function Inventory() {
                 type="button"
                 disabled={deleting}
                 onClick={handleDeleteInventory}
+                className="delete-btn"
                 style={{
                   backgroundColor: '#dc2626',
                   color: '#ffffff',
-                  border: '1px solid #dc2626',
+                  border: 'none',
                   padding: '10px 16px',
                   borderRadius: '8px',
                   fontSize: '14px',
@@ -1037,7 +1063,6 @@ export default function Inventory() {
                   cursor: 'pointer'
                 }}
               >
-                <i className="fa-solid fa-trash"></i>{' '}
                 {deleting ? 'Deleting...' : 'Delete Item'}
               </button>
 
@@ -1047,39 +1072,23 @@ export default function Inventory() {
         </div>
       )}
 
-      <div className="inventory-stats">
-        <div className="stat-card">
-          <div className="stat-icon blue"><i className="fa-solid fa-boxes-stacked"></i></div>
-          <div>
-            <h3>{totalItems}</h3>
-            <p>Total Inventory Items</p>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon orange"><i className="fa-solid fa-triangle-exclamation"></i></div>
-          <div>
-            <h3>{lowStockItems}</h3>
-            <p>Low Stock Alerts</p>
-          </div>
-        </div>
-      </div>
-
+      {/* SEARCH & FILTER BAR */}
       <div className="inventory-toolbar">
         <div className="search-box">
           <i className="fa-solid fa-magnifying-glass"></i>
           <input
             type="text"
-            style={{ backgroundColor: '#ffffff', color: '#000000' }}
             placeholder="Search medicine name, ID, or category..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={e => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="filter-actions">
+
+        <div className="filter-group">
           <select
-            className="filter-select"
             value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
+            onChange={e => setFilterCategory(e.target.value)}
+            className="filter-select"
           >
             <option value="">All Categories</option>
             <option value="Medicine">Medicine</option>
@@ -1089,7 +1098,37 @@ export default function Inventory() {
         </div>
       </div>
 
-      <div className="table-container">
+      {/* STATS SUMMARY CARDS */}
+      <div className="inventory-stats">
+        <div className="stat-card">
+          <div className="stat-icon blue">
+            <i className="fa-solid fa-boxes-stacked"></i>
+          </div>
+          <div>
+            <h3>{totalItems}</h3>
+            <p>Total Inventory Items</p>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-icon orange">
+            <i className="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          <div>
+            <h3>{lowStockItems}</h3>
+            <p>Low Stock Alerts</p>
+          </div>
+        </div>
+      </div>
+
+      {/* TABLE VIEW (Naka-wrap sa componentRef para ma-print nang maayos) */}
+      <div className="table-container" ref={componentRef}>
+        <div className="print-header" style={{ display: 'none' }}>
+          <h2>VetStock Veterinary Clinic - Inventory Report</h2>
+          <p>Generated on: {new Date().toLocaleDateString()}</p>
+          <hr style={{ margin: '15px 0', border: '1px solid #ccc' }} />
+        </div>
+
         <table className="modern-table">
           <thead>
             <tr>
@@ -1099,156 +1138,115 @@ export default function Inventory() {
               <th>Quantity</th>
               <th>Unit Price</th>
               <th>Status</th>
-              {canManageInventory && <th>Actions</th>}
+              <th className="no-print">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={canManageInventory ? 7 : 6} className="no-data">Loading inventory from database...</td>
+                <td colSpan="7" className="no-data">Loading inventory...</td>
               </tr>
-            ) : filteredInventory.length > 0 ?
-              (paginatedInventory.map((item, index) => {
-                const quantity = Number(item.quantity) || 0;
-                const minStock = Number(item.minStock ?? 10);
+            ) : paginatedInventory.length > 0 ? (
+              paginatedInventory.map(item => {
+                const qty = Number(item.quantity) || 0;
+                const min = Number(item.minStock ?? 10);
+                
+                let statusBadge = <span className="status-badge in-stock">IN STOCK</span>;
+                if (qty === 0) {
+                  statusBadge = <span className="status-badge no-stock">NO STOCK</span>;
+                } else if (qty <= min) {
+                  statusBadge = <span className="status-badge low-stock">LOW STOCK</span>;
+                }
 
-                const stockStatus = quantity <= 0
-                  ? 'No Stock'
-                  : quantity <= minStock
-                    ? 'Low Stock'
-                    : 'In Stock';
-
-                const statusClass = quantity <= 0
-                  ? 'no-stock'
-                  : quantity <= minStock
-                    ? 'low-stock'
-                    : 'in-stock';
                 return (
                   <tr
                     key={item.id}
-                    className="inventory-clickable-row"
                     onClick={() => {
                       setSelectedItem(item);
-                      setActionError('');
                       setShowDetailsModal(true);
                     }}
+                    style={{ cursor: 'pointer' }}
                   >
-                    <td><span className="item-id">{String(item.id).substring(0, 8)}</span></td>
+                    <td><span className="item-id">#{String(item.id).substring(0, 8)}</span></td>
                     <td><strong>{item.name}</strong></td>
-                    <td>{item.category}</td>
-                    <td>{item.quantity}</td>
-                    <td>₱{item.price ? Number(item.price).toFixed(2) : '0.00'}</td>
-                    <td>
-                      <span className={`status-badge ${statusClass}`}>
-                        {stockStatus}
-                      </span>
+                    <td><span className="category-tag">{item.category}</span></td>
+                    <td>{qty}</td>
+                    <td>₱{Number(item.price || 0).toFixed(2)}</td>
+                    <td>{statusBadge}</td>
+                    <td className="no-print">
+                      <div className="action-buttons" onClick={e => e.stopPropagation()}>
+                        {canManageInventory && (
+                          <>
+                            <button
+                              type="button"
+                              className="icon-btn edit"
+                              onClick={() => openEditModal(item)}
+                              title="Edit Item"
+                            >
+                              <i className="fa-solid fa-pen"></i>
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-btn delete"
+                              onClick={() => {
+                                setSelectedItem(item);
+                                setActionError('');
+                                setShowDeleteModal(true);
+                              }}
+                              title="Delete Item"
+                            >
+                              <i className="fa-solid fa-trash"></i>
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
-
-                    {canManageInventory && (
-                      <td>
-                        <div
-                          className="action-buttons"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          <button
-                            type="button"
-                            className="icon-btn edit"
-                            title="Edit Inventory Item"
-                            onClick={() => openEditModal(item)}
-                          >
-                            <i className="fa-solid fa-pen"></i>
-                          </button>
-
-                          <button
-                            type="button"
-                            className="icon-btn delete"
-                            title="Delete Inventory Item"
-                            onClick={() => {
-                              setSelectedItem(item);
-                              setActionError('');
-                              setShowDeleteModal(true);
-                            }}
-                          >
-                            <i className="fa-solid fa-trash"></i>
-                          </button>
-                        </div>
-                      </td>
-                    )}
-
                   </tr>
                 );
               })
-              ) : (
-                <tr>
-                  <td colSpan={canManageInventory ? 7 : 6} className="no-data">No inventory items found from database.</td>
-                </tr>
-              )}
+            ) : (
+              <tr>
+                <td colSpan="7" className="no-data">No inventory items found.</td>
+              </tr>
+            )}
           </tbody>
         </table>
-
-        {/* PAGINATION FOOTER */}
-        <div className="inventory-pagination">
-
-          <div className="inventory-pagination-info">
-            <label htmlFor="inventory-page-size">
-              Rows per page:
-            </label>
-
-            <select
-              id="inventory-page-size"
-              value={pageSize}
-              onChange={e => setPageSize(Number(e.target.value))}
-            >
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-              <option value={15}>15</option>
-              <option value={20}>20</option>
-            </select>
-          </div>
-
-          <span className="inventory-page-range">
-            Showing {filteredInventory.length === 0
-              ? "0–0"
-              : `${startIndex + 1}–${Math.min(
-                startIndex + pageSize,
-                filteredInventory.length
-              )}`} of {filteredInventory.length} items
-          </span>
-
-          <div className="inventory-pagination-controls">
-
-            <button
-              type="button"
-              disabled={currentPage === 1}
-              onClick={() =>
-                setCurrentPage(prev => Math.max(1, prev - 1))
-              }
-            >
-              Previous
-            </button>
-
-            <span>
-              Page {currentPage} of {totalPages}
-            </span>
-
-            <button
-              type="button"
-              disabled={currentPage >= totalPages}
-              onClick={() =>
-                setCurrentPage(prev =>
-                  Math.min(totalPages, prev + 1)
-                )
-              }
-            >
-              Next
-            </button>
-
-          </div>
-
-        </div>
-
       </div>
 
+      {/* PAGINATION */}
+      <div className="inventory-pagination">
+        <div className="inventory-pagination-info">
+          <label>Rows per page:</label>
+          <select
+            value={pageSize}
+            onChange={e => setPageSize(Number(e.target.value))}
+          >
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={15}>15</option>
+            <option value={20}>20</option>
+          </select>
+        </div>
+
+        <div className="inventory-pagination-controls">
+          <button
+            type="button"
+            disabled={currentPage === 1}
+            onChange={() => {}}
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+          >
+            Previous
+          </button>
+          <span>Page {currentPage} of {totalPages}</span>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+          >
+            Next
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
