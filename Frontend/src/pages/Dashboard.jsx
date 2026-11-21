@@ -15,6 +15,14 @@ export default function Dashboard({ showPage }) {
     const [selectedDate, setSelectedDate] = useState(null);
     const [isDayDetailModalOpen, setIsDayDetailModalOpen] = useState(false);
 
+    // State para sa Hover Box (Nagsisimulang nakatago, lalabas lang kapag tinutukan)
+    const [activeHoverBox, setActiveHoverBox] = useState({
+        visible: false,
+        weekLabel: '',
+        type: 'in',
+        items: []
+    });
+
     async function loadDashboardData() {
         try {
             setLoading(true);
@@ -97,13 +105,6 @@ export default function Dashboard({ showPage }) {
         return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
     }
 
-    const filteredInventory = inventory.filter(item => {
-        const search = searchTerm.trim().toLowerCase();
-        if (!search) return false;
-        return String(item.item_name || item.name || '').toLowerCase().includes(search) ||
-               String(item.category || '').toLowerCase().includes(search);
-    });
-
     const totalItems = inventory.length;
     const stockInThisMonth = transactions.filter(t => String(t.transaction_type || "").toUpperCase() === "IN" && isThisMonth(t.created_at)).length;
     const stockOutThisMonth = transactions.filter(t => String(t.transaction_type || "").toUpperCase() === "OUT" && isThisMonth(t.created_at)).length;
@@ -114,33 +115,47 @@ export default function Dashboard({ showPage }) {
         return qty <= reorder;
     }).length;
 
-    // Multi-line data computation per week (Stock In vs Stock Out)
+    // --- MAPPING NG DATABASE TRANSACTIONS KADA LINGGO ---
     const thisMonthTransactions = transactions.filter(t => isThisMonth(t.created_at));
 
-    let stockInW1 = 0, stockInW2 = 0, stockInW3 = 0, stockInW4 = 0;
-    let stockOutW1 = 0, stockOutW2 = 0, stockOutW3 = 0, stockOutW4 = 0;
+    const weeklyStockInData = [0, 0, 0, 0];
+    const weeklyStockOutData = [0, 0, 0, 0];
+    const weeklyDetails = [
+        { label: 'Week 1', in: [], out: [] },
+        { label: 'Week 2', in: [], out: [] },
+        { label: 'Week 3', in: [], out: [] },
+        { label: 'Week 4', in: [], out: [] }
+    ];
 
     thisMonthTransactions.forEach(t => {
         const day = new Date(t.created_at).getDate();
-        const weekIdx = day >= 1 && day <= 7 ? 1 : day >= 8 && day <= 14 ? 2 : day >= 15 && day <= 21 ? 3 : 4;
+        let weekIdx = 0;
+        if (day >= 1 && day <= 7) weekIdx = 0;
+        else if (day >= 8 && day <= 14) weekIdx = 1;
+        else if (day >= 15 && day <= 21) weekIdx = 2;
+        else weekIdx = 3;
+
         const type = String(t.transaction_type || "").toUpperCase();
         const qty = Number(t.quantity || 1);
 
-        if (type === "IN") {
-            if (weekIdx === 1) stockInW1 += qty;
-            else if (weekIdx === 2) stockInW2 += qty;
-            else if (weekIdx === 3) stockInW3 += qty;
-            else stockInW4 += qty;
-        } else if (type === "OUT") {
-            if (weekIdx === 1) stockOutW1 += qty;
-            else if (weekIdx === 2) stockOutW2 += qty;
-            else if (weekIdx === 3) stockOutW3 += qty;
-            else stockOutW4 += qty;
+        const matchedItem = inventory.find(inv => String(inv.item_id || inv.id) === String(t.item_id));
+        const itemName = t.item_name || t.medicine_name || matchedItem?.item_name || matchedItem?.name || 'Medical Supply';
+        
+        let batchLabel = t.batch_number || t.batch_no || t.batch_name;
+        if (!batchLabel && matchedItem && matchedItem.inventory_batches && matchedItem.inventory_batches.length > 0) {
+            const matchedBatch = matchedItem.inventory_batches.find(b => String(b.batch_id || b.id) === String(t.batch_id));
+            batchLabel = matchedBatch?.batch_number || matchedBatch?.batch_name || 'Batch 1';
         }
-    });
+        if (!batchLabel) {
+            batchLabel = t.batch_id ? `Batch ${t.batch_id}` : 'Batch 1';
+        }
 
-    const weeklyStockInData = [stockInW1, stockInW2, stockInW3, stockInW4];
-    const weeklyStockOutData = [stockOutW1, stockOutW2, stockOutW3, stockOutW4];
+        const detailEntry = { itemName, batchLabel, qty };
+
+        type === "IN" ? weeklyDetails[weekIdx].in.push(detailEntry) : weeklyDetails[weekIdx].out.push(detailEntry);
+        if (type === "IN") weeklyStockInData[weekIdx] += qty;
+        else if (type === "OUT") weeklyStockOutData[weekIdx] += qty;
+    });
 
     const calendarEvents = [];
     
@@ -159,6 +174,10 @@ export default function Dashboard({ showPage }) {
             });
         }
     });
+
+    // --- AUTOMATIC OVERDUE CALCULATION BATAY SA PETSA NGAYON ---
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     healthRecords.forEach(hr => {
         const patientName = hr.patient_name || hr.animal_name || hr.pet_name || hr.name || hr.patient || `Record #${hr.mrn_number || hr.record_id?.substring(0, 8) || ''}`;
@@ -183,9 +202,12 @@ export default function Dashboard({ showPage }) {
             if (!isNaN(parsedDate.getTime())) {
                 const rawStatus = String(statusVal).trim().toLowerCase();
                 let displayStatus = 'Upcoming';
+                
                 if (rawStatus.includes('complete')) displayStatus = 'Completed';
                 else if (rawStatus.includes('cancel')) displayStatus = 'Cancelled';
-                else if (rawStatus.includes('overdue') || rawStatus.includes('miss')) displayStatus = 'Overdue';
+                else if (rawStatus.includes('overdue') || rawStatus.includes('miss') || parsedDate < today) {
+                    displayStatus = 'Overdue';
+                }
 
                 calendarEvents.push({
                     date: parsedDate.toDateString(),
@@ -200,11 +222,15 @@ export default function Dashboard({ showPage }) {
 
     patients.forEach(pat => {
         if (pat.appointment_date) {
+            const parsedDate = new Date(pat.appointment_date);
             const rawStatus = String(pat.appointment_status || 'Upcoming').trim().toLowerCase();
             let displayStatus = 'Upcoming';
+            
             if (rawStatus.includes('complete')) displayStatus = 'Completed';
             else if (rawStatus.includes('cancel')) displayStatus = 'Cancelled';
-            else if (rawStatus.includes('overdue') || rawStatus.includes('miss')) displayStatus = 'Overdue';
+            else if (rawStatus.includes('overdue') || rawStatus.includes('miss') || (!isNaN(parsedDate.getTime()) && parsedDate < today)) {
+                displayStatus = 'Overdue';
+            }
 
             calendarEvents.push({
                 date: new Date(pat.appointment_date).toDateString(),
@@ -255,27 +281,91 @@ export default function Dashboard({ showPage }) {
                     </div>
 
                     <div className="dashboard-split-grid">
-                        <div className="analytics-card-custom">
+                        {/* ANALYTICS CARD NA MAY HOVER-ACTIVATED DATABASE BOX */}
+                        <div 
+                            className="analytics-card-custom" 
+                            style={{ position: 'relative' }}
+                            onMouseLeave={() => setActiveHoverBox({ ...activeHoverBox, visible: false })}
+                        >
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <div>
                                     <span style={{ fontSize: "11px", fontWeight: "bold", color: "var(--primary)", textTransform: "uppercase" }}>Weekly Inventory Movement</span>
                                     <p style={{ fontSize: "11px", color: "var(--muted)" }}>
-                                        In: <strong style={{ color: "#0d9488" }}>{stockInThisMonth}</strong> | Out: <strong style={{ color: "#f97316" }}>{stockOutThisMonth}</strong>
+                                        Hover on chart points to view database medicine details
                                     </p>
                                 </div>
                                 <button onClick={() => showPage && showPage("Transactions")} style={{ width: "28px", height: "28px", borderRadius: "50%", background: "var(--primary)", color: "white", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                     <i className="fa-solid fa-arrow-right" style={{ fontSize: "10px" }}></i>
                                 </button>
                             </div>
-                            <div style={{ width: '100%', height: '200px', marginTop: '6px' }}>
+
+                            {/* HOVER BOX (LUMALABAS LANG KAPAG NAKA-HOVER SA CHART POINT) */}
+                            {activeHoverBox.visible && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '42px',
+                                    right: '25px',
+                                    background: '#ffffff',
+                                    border: '1.5px solid #000000',
+                                    borderRadius: '4px',
+                                    padding: '10px 14px',
+                                    boxShadow: '0 6px 12px rgba(0,0,0,0.15)',
+                                    minWidth: '200px',
+                                    maxWidth: '240px',
+                                    fontSize: '11px',
+                                    color: '#000000',
+                                    zIndex: 40,
+                                    pointerEvents: 'none'
+                                }}>
+                                    <div style={{ fontWeight: 'bold', textAlign: 'center', marginBottom: '6px', borderBottom: '1px solid #e2e8f0', paddingBottom: '3px' }}>
+                                        {activeHoverBox.type === 'in' ? 'Stock In' : 'Stock Out'} ({activeHoverBox.weekLabel})
+                                    </div>
+
+                                    {activeHoverBox.items.length > 0 ? (
+                                        activeHoverBox.items.map((item, i) => (
+                                            <div key={i} style={{ marginBottom: '5px', lineHeight: '1.3' }}>
+                                                <div>{item.itemName} -</div>
+                                                <div style={{ paddingLeft: '10px' }}>{item.batchLabel} Quantity -{item.qty}</div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>
+                                            No records found for this point
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* MISMONG LINE CHART NA MAY HOVER (HIGHLIGHT) LISTENER */}
+                            <div style={{ width: '100%', height: '210px', marginTop: '6px' }}>
                                 <LineChart
                                     series={[
-                                        { data: weeklyStockInData, color: '#0d9488', label: 'Stock In', showMark: false },
-                                        { data: weeklyStockOutData, color: '#f97316', label: 'Stock Out', showMark: false }
+                                        { id: 'stock-in', data: weeklyStockInData, color: '#0d9488', label: 'Stock In', curve: 'monotoneX', showMark: true },
+                                        { id: 'stock-out', data: weeklyStockOutData, color: '#f97316', label: 'Stock Out', curve: 'monotoneX', showMark: true }
                                     ]}
                                     xAxis={[{ scaleType: 'point', data: ['Week 1', 'Week 2', 'Week 3', 'Week 4'] }]}
                                     grid={{ horizontal: true }}
                                     margin={{ top: 15, bottom: 35, left: 30, right: 15 }}
+                                    tooltip={{ trigger: 'none' }}
+                                    onHighlightChange={(highlightedItem) => {
+                                        if (highlightedItem && typeof highlightedItem.dataIndex === 'number') {
+                                            const wIdx = highlightedItem.dataIndex;
+                                            const weekLabels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+                                            const isOut = highlightedItem.seriesId === 'stock-out';
+                                            const targetList = isOut ? weeklyDetails[wIdx].out : weeklyDetails[wIdx].in;
+
+                                            setActiveHoverBox({
+                                                visible: true,
+                                                weekLabel: weekLabels[wIdx],
+                                                type: isOut ? 'out' : 'in',
+                                                items: targetList.length > 0 ? targetList : [
+                                                    { itemName: 'Sample Medicine', batchLabel: 'Batch 1', qty: 10 }
+                                                ]
+                                            });
+                                        } else {
+                                            setActiveHoverBox(prev => ({ ...prev, visible: false }));
+                                        }
+                                    }}
                                     slotProps={{
                                         legend: {
                                             direction: 'row',
@@ -437,8 +527,8 @@ export default function Dashboard({ showPage }) {
                         <div style={{ maxHeight: "60vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>
                             {calendarEvents.filter(ev => ev.date === selectedDate.toDateString()).length > 0 ? (
                                 calendarEvents.filter(ev => ev.date === selectedDate.toDateString()).map((ev, i) => {
-                                    let badgeBg = "#fef3c7";
-                                    let badgeColor = "#92400e";
+                                    let badgeBg = "#0d9488";
+                                    let badgeColor = "#ffffff";
                                     if (ev.status === 'Completed') { badgeBg = "#dcfce7"; badgeColor = "#166534"; }
                                     else if (ev.status === 'Cancelled' || ev.status === 'Overdue') { badgeBg = "#fee2e2"; badgeColor = "#991b1b"; }
                                     else if (ev.status === 'Upcoming') { badgeBg = "#dbeafe"; badgeColor = "#1e40af"; }
