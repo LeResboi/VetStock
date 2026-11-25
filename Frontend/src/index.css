@@ -109,3 +109,12 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  #root {
+    width: 100%;
+    max-width: 100%;
+    border-inline: 0;
+  }
+}

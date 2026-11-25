@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     useNavigate,
     useLocation,
     Outlet,
     Navigate
 } from 'react-router-dom';
-
+  
 import '../App.css';
 import './Auth.css';
 import illustrationImg from '../assets/Icon.png';
@@ -303,6 +303,8 @@ export default function AuthApp() {
 
 export function MainLayout() {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const touchStart = useRef(null);
 
     const navigate = useNavigate();
     const location = useLocation();
@@ -372,6 +374,70 @@ export function MainLayout() {
         }
     }, []);
 
+    useEffect(() => {
+        setMobileMenuOpen(false);
+    }, [location.pathname]);
+
+    useEffect(() => {
+        if (!mobileMenuOpen) {
+            return undefined;
+        }
+
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                setMobileMenuOpen(false);
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [mobileMenuOpen]);
+
+    const handleTouchStart = (event) => {
+        const touch = event.touches[0];
+        touchStart.current = {
+            x: touch.clientX,
+            y: touch.clientY
+        };
+    };
+
+    const handleTouchEnd = (event) => {
+        if (!window.matchMedia('(max-width: 768px)').matches) {
+            touchStart.current = null;
+            return;
+        }
+
+        const start = touchStart.current;
+        touchStart.current = null;
+
+        if (!start) {
+            return;
+        }
+
+        const touch = event.changedTouches[0];
+        const deltaX = touch.clientX - start.x;
+        const deltaY = touch.clientY - start.y;
+
+        if (Math.abs(deltaX) < 60 || Math.abs(deltaY) > 80) {
+            return;
+        }
+
+        if (!mobileMenuOpen && deltaX > 0 && start.x <= 32) {
+            setMobileMenuOpen(true);
+        } else if (mobileMenuOpen && deltaX < 0 && start.x <= 280) {
+            setMobileMenuOpen(false);
+        }
+    };
+
+    const handleMenuToggle = () => {
+        if (window.matchMedia('(max-width: 768px)').matches) {
+            setMobileMenuOpen((isOpen) => !isOpen);
+            return;
+        }
+
+        setSidebarCollapsed((isCollapsed) => !isCollapsed);
+    };
+
     const userInitial = userName
         ? userName.charAt(0).toUpperCase()
         : 'A';
@@ -424,11 +490,17 @@ export function MainLayout() {
     };
 
     return (
-        <div className="app">
+        <div
+            className="app"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+        >
 
             <aside
+                id="main-navigation"
+                aria-label="Main navigation"
                 className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''
-                    }`}
+                    } ${mobileMenuOpen ? 'mobile-open' : ''}`}
             >
                 <div className="sidebar-header">
                     <div className="sidebar-logo-icon">
@@ -614,6 +686,15 @@ export function MainLayout() {
                 </div>
             </aside>
 
+            {mobileMenuOpen && (
+                <button
+                    type="button"
+                    className="sidebar-backdrop"
+                    aria-label="Close navigation"
+                    onClick={() => setMobileMenuOpen(false)}
+                />
+            )}
+
             <main
                 className={`main ${sidebarCollapsed ? 'expanded' : ''
                     }`}
@@ -621,9 +702,15 @@ export function MainLayout() {
                 <header className="topbar">
                     <button
                         className="sidebar-toggle"
-                        onClick={() =>
-                            setSidebarCollapsed(!sidebarCollapsed)
+                        type="button"
+                        aria-label="Toggle navigation"
+                        aria-controls="main-navigation"
+                        aria-expanded={
+                            window.matchMedia('(max-width: 768px)').matches
+                                ? mobileMenuOpen
+                                : !sidebarCollapsed
                         }
+                        onClick={handleMenuToggle}
                     >
                         <i className="fa-solid fa-bars"></i>
                     </button>

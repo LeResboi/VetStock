@@ -526,3 +526,34 @@
         padding: 15px;
     }
 }
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+    .audit-page {
+        padding: 12px;
+    }
+
+    .audit-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .audit-stat-card {
+        gap: 10px;
+        padding: 14px;
+    }
+
+    .audit-stat-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+    }
+
+    .audit-stat-card h2 {
+        font-size: 22px;
+    }
+
+    .audit-content {
+        padding: 12px;
+    }
+}

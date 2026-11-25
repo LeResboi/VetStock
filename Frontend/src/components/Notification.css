@@ -91,3 +91,33 @@
         transform: translate(-50%, 0);
     }
 }
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+    .vs-notification {
+        top: max(12px, env(safe-area-inset-top));
+        right: 12px;
+        left: 12px;
+        width: auto;
+        max-width: none;
+        min-height: 0;
+        padding: 16px;
+        transform: none;
+        animation-name: vsNotificationAppearMobile;
+    }
+
+    .vs-notification-message {
+        font-size: 14px;
+    }
+}
+
+@keyframes vsNotificationAppearMobile {
+    from {
+        opacity: 0;
+        transform: translateY(-12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

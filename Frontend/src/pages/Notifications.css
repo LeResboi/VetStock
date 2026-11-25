@@ -281,3 +281,101 @@
     color: #1d4ed8;
     background: #dbeafe;
 }
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+    .notifications-page {
+        padding: 14px;
+    }
+
+    .notifications-header {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .notification-header-actions .mark-all-btn {
+        width: 100%;
+    }
+
+    .notification-controls {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .filter-tabs {
+        width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .filter-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .tab-btn {
+        justify-content: center;
+        flex: 0 0 auto;
+        padding: 8px;
+        white-space: nowrap;
+    }
+
+    .notification-card {
+        display: grid;
+        grid-template-columns: 40px minmax(0, 1fr);
+        align-items: start;
+        gap: 10px 12px;
+        padding: 14px;
+    }
+
+    .notif-icon-wrapper {
+        grid-column: 1;
+        grid-row: 1 / span 2;
+    }
+
+    .notif-content {
+        grid-column: 2;
+        grid-row: 1;
+        min-width: 0;
+    }
+
+    .notif-top-row {
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px 8px;
+    }
+
+    .notif-type-tag {
+        overflow-wrap: anywhere;
+    }
+
+    .notification-card h4,
+    .notification-card p {
+        text-align: left;
+        overflow-wrap: anywhere;
+    }
+
+    .notification-card h4 {
+        line-height: 1.4;
+    }
+
+    .notification-card p {
+        line-height: 1.55;
+    }
+
+    .notif-action-indicator {
+        grid-column: 2;
+        grid-row: 2;
+        justify-content: flex-end;
+        min-width: 0;
+    }
+
+    .notif-action-indicator button {
+        max-width: 100%;
+        white-space: normal;
+        line-height: 1.3;
+    }
+}

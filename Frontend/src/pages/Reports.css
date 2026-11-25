@@ -177,3 +177,33 @@
   font-weight: 600;
   text-transform: uppercase;
 }
+
+/* Mobile responsive */
+@media (max-width: 650px) {
+  .reports-page {
+    padding: 14px !important;
+  }
+
+  .reports-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .report-card,
+  .report-result-container {
+    padding: 16px;
+  }
+
+  .report-result-container {
+    overflow-x: auto;
+  }
+
+  .report-result-container .modern-table {
+    min-width: 560px;
+  }
+
+  .generate-btn {
+    width: 100%;
+    min-height: 44px;
+  }
+}

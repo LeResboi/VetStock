@@ -609,80 +609,79 @@ export default function HealthRecords() {
         )}
       </div>
 
-
-
-      {/* Quick Stats Cards */}
-      <div className="health-records-stats">
-
-        <div className="stat-card">
-          <div className="stat-icon blue">
-            <i className="fa-solid fa-file-medical"></i>
+      <div className="health-records-mobile-overview">
+        {/* Quick Stats Cards */}
+        <div className="health-records-stats">
+          <div className="stat-card">
+            <div className="stat-icon blue">
+              <i className="fa-solid fa-file-medical"></i>
+            </div>
+            <div>
+              <h3>{records.length}</h3>
+              <p>Total Records</p>
+            </div>
           </div>
-          <div>
-            <h3>{records.length}</h3>
-            <p>Total Records</p>
+
+          <div className="stat-card">
+            <div className="stat-icon teal">
+              <i className="fa-solid fa-calendar-check"></i>
+            </div>
+            <div>
+              <h3>{followUpCounts.upcoming}</h3>
+              <p>Upcoming</p>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon orange">
+              <i className="fa-solid fa-clock"></i>
+            </div>
+            <div>
+              <h3>{followUpCounts.overdue}</h3>
+              <p>Overdue</p>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon gray">
+              <i className="fa-solid fa-calendar-xmark"></i>
+            </div>
+            <div>
+              <h3>{followUpCounts.notScheduled}</h3>
+              <p>Not Scheduled</p>
+            </div>
           </div>
         </div>
 
-        <div className="stat-card">
-          <div className="stat-icon teal">
-            <i className="fa-solid fa-calendar-check"></i>
+        {/* Search Toolbar */}
+        <div className="health-records-toolbar">
+          <div className="search-box">
+            <i className="fa-solid fa-magnifying-glass"></i>
+            <input
+              type="text"
+              style={{ backgroundColor: '#ffffff', color: '#000000' }}
+              placeholder="Search patient, ID, or diagnosis..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-          <div>
-            <h3>{followUpCounts.upcoming}</h3>
-            <p>Upcoming</p>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon orange">
-            <i className="fa-solid fa-clock"></i>
-          </div>
-          <div>
-            <h3>{followUpCounts.overdue}</h3>
-            <p>Overdue</p>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon gray">
-            <i className="fa-solid fa-calendar-xmark"></i>
-          </div>
-          <div>
-            <h3>{followUpCounts.notScheduled}</h3>
-            <p>Not Scheduled</p>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Search Toolbar */}
-      <div className="health-records-toolbar">
-        <div className="search-box">
-          <i className="fa-solid fa-magnifying-glass"></i>
-          <input
-            type="text"
-            style={{ backgroundColor: '#ffffff', color: '#000000' }}
-            placeholder="Search patient, ID, or diagnosis..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
         </div>
       </div>
 
       {/* Modern Table Container */}
       <div className="table-container">
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-            <i className="fa-solid fa-spinner fa-spin fa-2x"></i>
-            <p>Loading health records from database...</p>
-          </div>
-        ) : error ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#dc2626' }}>
-            <p>{error}</p>
-          </div>
-        ) : (
-          <table className="modern-table">
+        <div className="health-records-table-scroll">
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+              <i className="fa-solid fa-spinner fa-spin fa-2x"></i>
+              <p>Loading health records from database...</p>
+            </div>
+          ) : error ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#dc2626' }}>
+              <p>{error}</p>
+            </div>
+          ) : (
+            <table className="modern-table">
             <thead>
               <tr>
                 <th>Record ID</th>
@@ -812,10 +811,11 @@ export default function HealthRecords() {
                 </tr>
               )}
             </tbody>
-          </table>
+            </table>
 
-        )
-        }
+          )
+          }
+        </div>
         {/* Health Records Pagination */}
         <div className="health-pagination">
 
@@ -1291,25 +1291,9 @@ export default function HealthRecords() {
             </div>
 
             {/* FOLLOW-UP APPOINTMENT HISTORY */}
-            <div
-              style={{
-                marginTop: '22px',
-                padding: '16px',
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: '8px'
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: '10px',
-                  marginBottom: '14px'
-                }}
-              >
-                <h3 style={{ margin: 0, color: '#0f172a' }}>
+            <div className="followup-history-panel">
+              <div className="followup-history-header">
+                <h3 className="followup-history-title">
                   Follow-up Appointment History
                 </h3>
 
@@ -1322,14 +1306,7 @@ export default function HealthRecords() {
                       viewingRecord.status === 'recovered' ||
                       viewingRecord.status === 'cancelled'
                     }
-                    style={{
-                      padding: '8px 12px',
-                      background: '#0d9488',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer'
-                    }}
+                    className="followup-schedule-btn"
                   >
                     + Schedule Follow-up
                   </button>
@@ -1459,27 +1436,14 @@ export default function HealthRecords() {
               {/* NEW FOLLOW-UP FORM */}
               {canManageRecords && showFollowUpForm && (
                 <form
+                  className="followup-form"
                   onSubmit={handleAddFollowUp}
-                  style={{
-                    marginTop: '16px',
-                    padding: '14px',
-                    backgroundColor: '#ffffff',
-                    color: '#000000',
-                    background: '#fff',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '8px'
-                  }}
                 >
-                  <h4 style={{ marginTop: 0 }}>
+                  <h4 className="followup-form-title">
                     Schedule Another Check-up
                   </h4>
 
-                  <label style={{
-                    display: 'block',
-                    marginBottom: '6px',
-                    fontSize: '13px',
-                    fontWeight: '600'
-                  }}>
+                  <label className="followup-form-label">
                     Follow-up Date *
                   </label>
 
@@ -1491,12 +1455,7 @@ export default function HealthRecords() {
                     required
                   />
 
-                  <label style={{
-                    display: 'block',
-                    marginBottom: '6px',
-                    fontSize: '13px',
-                    fontWeight: '600'
-                  }}>
+                  <label className="followup-form-label">
                     Appointment Notes (Optional)
                   </label>
 
@@ -1505,35 +1464,14 @@ export default function HealthRecords() {
                     onChange={(e) => setNewFollowUpNotes(e.target.value)}
                     placeholder="Enter instructions or check-up details..."
                     rows="3"
-                    style={{
-                      width: '100%',
-                      padding: '9px',
-                      marginBottom: '12px',
-                      backgroundColor: '#ffffff',
-                      color: '#000000',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '5px',
-                      resize: 'vertical'
-                    }}
+                    className="followup-notes-input"
                   />
 
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    gap: '8px'
-                  }}>
+                  <div className="followup-form-actions">
                     <button
                       type="button"
                       onClick={() => setShowFollowUpForm(false)}
-                      style={{
-                        backgroundColor: '#e2e8f0',
-                        color: '#334155',
-                        border: 'none',
-                        padding: '8px 14px',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        fontWeight: '500'
-                      }}
+                      className="followup-form-cancel-btn"
                     >
                       Cancel
                     </button>
@@ -1541,14 +1479,7 @@ export default function HealthRecords() {
                     <button
                       type="submit"
                       disabled={followUpSubmitting}
-                      style={{
-                        background: '#0d9488',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '8px 14px',
-                        borderRadius: '5px',
-                        cursor: 'pointer'
-                      }}
+                      className="followup-form-save-btn"
                     >
                       {followUpSubmitting ? 'Scheduling...' : 'Save Appointment'}
                     </button>

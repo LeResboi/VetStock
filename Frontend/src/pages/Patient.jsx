@@ -547,7 +547,7 @@ export default function Patient() {
           <p>Manage veterinary patients, species records, and upcoming schedules in real-time.</p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div className="patient-header-actions">
           {!userRoleLoading && canDeletePatient && (
             <button
               type="button"
@@ -570,76 +570,78 @@ export default function Patient() {
         </div>
       </div>
 
-      {/* Quick Stats */}
-      <div className="patient-stats">
-        <div className="stat-card">
-          <div className="stat-icon purple">
-            <i className="fa-solid fa-shield-dog"></i>
+      <div className="patient-mobile-overview">
+        {/* Quick Stats */}
+        <div className="patient-stats">
+          <div className="stat-card">
+            <div className="stat-icon purple">
+              <i className="fa-solid fa-shield-dog"></i>
+            </div>
+            <div>
+              <h3>{patients.length}</h3>
+              <p>Total Patients</p>
+            </div>
           </div>
-          <div>
-            <h3>{patients.length}</h3>
-            <p>Total Patients</p>
+
+          <div className="stat-card">
+            <div className="stat-icon green">
+              <i className="fa-solid fa-calendar-check"></i>
+            </div>
+            <div>
+              <h3>{scheduledCount}</h3>
+              <p>Scheduled Appointments</p>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon orange">
+              <i className="fa-solid fa-user-xmark"></i>
+            </div>
+            <div>
+              <h3>{nonappearanceCount}</h3>
+              <p>Nonappearance</p>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon red">
+              <i className="fa-solid fa-calendar-xmark"></i>
+            </div>
+            <div>
+              <h3>{cancelledCount}</h3>
+              <p>Cancelled Appointments</p>
+            </div>
           </div>
         </div>
 
-        <div className="stat-card">
-          <div className="stat-icon green">
-            <i className="fa-solid fa-calendar-check"></i>
+        {/* Toolbar: Search and View Toggle */}
+        <div className="patient-toolbar">
+          <div className="search-box">
+            <i className="fa-solid fa-magnifying-glass"></i>
+            <input
+              type="text"
+              style={{ backgroundColor: '#ffffff', color: '#000000' }}
+              placeholder="Search patient name, species, or owner..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-          <div>
-            <h3>{scheduledCount}</h3>
-            <p>Scheduled Appointments</p>
+          <div className="view-toggle">
+            <button
+              className={`toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
+              onClick={() => setViewMode('grid')}
+              title="Grid View"
+            >
+              <i className="fa-solid fa-grip"></i>
+            </button>
+            <button
+              className={`toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
+              onClick={() => setViewMode('table')}
+              title="Table View"
+            >
+              <i className="fa-solid fa-table"></i>
+            </button>
           </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon orange">
-            <i className="fa-solid fa-user-xmark"></i>
-          </div>
-          <div>
-            <h3>{nonappearanceCount}</h3>
-            <p>Nonappearance</p>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon red">
-            <i className="fa-solid fa-calendar-xmark"></i>
-          </div>
-          <div>
-            <h3>{cancelledCount}</h3>
-            <p>Cancelled Appointments</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Toolbar: Search and View Toggle */}
-      <div className="patient-toolbar">
-        <div className="search-box">
-          <i className="fa-solid fa-magnifying-glass"></i>
-          <input
-            type="text"
-            style={{ backgroundColor: '#ffffff', color: '#000000' }}
-            placeholder="Search patient name, species, or owner..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <div className="view-toggle">
-          <button
-            className={`toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
-            onClick={() => setViewMode('grid')}
-            title="Grid View"
-          >
-            <i className="fa-solid fa-grip"></i>
-          </button>
-          <button
-            className={`toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
-            onClick={() => setViewMode('table')}
-            title="Table View"
-          >
-            <i className="fa-solid fa-table"></i>
-          </button>
         </div>
       </div>
 
@@ -697,15 +699,7 @@ export default function Patient() {
                     </div>
 
                     {/* Action Buttons */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        marginTop: '12px'
-                      }}
-                    >
+                    <div className="patient-card-actions">
                       {canUpdateAppointmentStatus && pat.appointment_date && status === 'Scheduled' && (
                         <button
                           type="button"

@@ -400,74 +400,83 @@ export default function Transactions() {
         </div>
 
         {!permissionsLoading && canCreateTransaction && (
-          <button
-            className="add-btn"
-            onClick={() => {
-              setNewType(
-                userRole === 'Veterinarian' ? 'OUT' : 'IN'
-              );
-              setShowModal(true);
-            }}
-          >
-            <i className="fa-solid fa-plus"></i> New Transaction
-          </button>
+          <div className="transactions-header-actions">
+            <button
+              className="add-btn"
+              onClick={() => {
+                setNewType(
+                  userRole === 'Veterinarian' ? 'OUT' : 'IN'
+                );
+                setShowModal(true);
+              }}
+            >
+              <i className="fa-solid fa-plus"></i> New Transaction
+            </button>
+          </div>
         )}
 
       </div>
 
-      {/* Quick Stats Cards */}
-      <div className="transactions-stats">
-        <div className="stat-card">
-          <div className="stat-icon blue"><i className="fa-solid fa-right-left"></i></div>
-          <div>
-            <h3>{transactions.length}</h3>
-            <p>Total Transactions</p>
+      <div className="transactions-mobile-overview">
+        {/* Quick Stats Cards */}
+        <div className="transactions-stats">
+          <div className="stat-card">
+            <div className="stat-icon blue"><i className="fa-solid fa-right-left"></i></div>
+            <div>
+              <h3>{transactions.length}</h3>
+              <p>Total Transactions</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon green"><i className="fa-solid fa-arrow-trend-up"></i></div>
+            <div>
+              <h3>{totalStockIn}</h3>
+              <p>Total Stock In</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon orange"><i className="fa-solid fa-arrow-trend-down"></i></div>
+            <div>
+              <h3>{totalStockOut}</h3>
+              <p>Total Stock Out</p>
+            </div>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon green"><i className="fa-solid fa-arrow-trend-up"></i></div>
-          <div>
-            <h3>{totalStockIn}</h3>
-            <p>Total Stock In</p>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon orange"><i className="fa-solid fa-arrow-trend-down"></i></div>
-          <div>
-            <h3>{totalStockOut}</h3>
-            <p>Total Stock Out</p>
-          </div>
-        </div>
-      </div>
 
-      {/* Filters & Search Toolbar */}
-      <div className="transactions-toolbar">
-        <div className="search-box">
-          <i className="fa-solid fa-magnifying-glass"></i>
-          <input
-            type="text"
-            style={{ backgroundColor: '#ffff', color: '#000000' }}
-            placeholder="Search transactions, medicine, or staff..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <div className="filter-actions">
-          <select
-            className="filter-select"
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-          >
-            <option value="">All Transaction Types</option>
-            <option value="IN">Stock In</option>
-            <option value="OUT">Stock Out</option>
-            <option value="ADJUSTMENT">Adjustment</option>
-          </select>
+        {/* Filters & Search Toolbar */}
+        <div className="transactions-toolbar">
+          <div className="search-box">
+            <i className="fa-solid fa-magnifying-glass"></i>
+            <input
+              type="text"
+              style={{ backgroundColor: '#ffff', color: '#000000' }}
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="filter-actions">
+            <select
+              className="filter-select"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+            >
+              <option value="">All Types</option>
+              <option value="IN">Stock In</option>
+              <option value="OUT">Stock Out</option>
+              <option value="ADJUSTMENT">Adjustment</option>
+            </select>
+          </div>
         </div>
       </div>
 
       {/* Modern Table Container */}
-      <div className="table-container">
+      <div
+        className="table-container"
+        role="region"
+        aria-label="Stock transactions"
+        tabIndex={0}
+      >
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
             <i className="fa-solid fa-spinner fa-spin fa-2x"></i>
@@ -478,7 +487,7 @@ export default function Transactions() {
             <p>{error}</p>
           </div>
         ) : (
-          <table className="modern-table">
+          <table className="modern-table transactions-table">
             <thead>
               <tr>
                 <th>Transaction ID</th>
@@ -519,16 +528,16 @@ export default function Transactions() {
                           : undefined
                       }
                     >
-                      <td><span className="item-id">#{tx.transaction_id.substring(0, 8)}</span></td>
-                      <td>{formattedDate}</td>
-                      <td><strong>{tx.inventory_items?.item_name || 'Unknown Item'}</strong></td>
+                      <td className="transaction-id"><span className="item-id">#{tx.transaction_id.substring(0, 8)}</span></td>
+                      <td className="transaction-date">{formattedDate}</td>
+                      <td className="transaction-medicine-name"><strong>{tx.inventory_items?.item_name || 'Unknown Item'}</strong></td>
                       <td>
                         <span className={`status-badge ${badgeClass}`}>
                           {tx.transaction_type}
                         </span>
                       </td>
                       <td>{tx.quantity}</td>
-                      <td>{staffName}</td>
+                      <td className="transaction-staff">{staffName}</td>
                     </tr>
                   );
                 })

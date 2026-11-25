@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart } from '@mui/x-charts/LineChart';
+import './Dashboard.css';
 
 export default function Dashboard({ showPage }) {
     const [inventory, setInventory] = useState([]);
@@ -244,11 +245,20 @@ export default function Dashboard({ showPage }) {
 
     const [calMonth, setCalMonth] = useState(now.getMonth());
     const [calYear, setCalYear] = useState(now.getFullYear());
+    const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
 
     const firstDayIndex = new Date(calYear, calMonth, 1).getDay();
     const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const calendarDayCount = Math.ceil((firstDayIndex + daysInMonth) / 7) * 7;
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    const yearsList = [2024, 2025, 2026, 2027, 2028, 2029, 2030];
+    const yearsList = Array.from({ length: 21 }, (_, index) => now.getFullYear() - 10 + index);
+
+    const goToCurrentMonth = () => {
+        const currentDate = new Date();
+        setCalMonth(currentDate.getMonth());
+        setCalYear(currentDate.getFullYear());
+        setIsMonthPickerOpen(false);
+    };
 
     return (
         <div className="page active-page" style={{ paddingBottom: "40px" }}>
@@ -337,7 +347,7 @@ export default function Dashboard({ showPage }) {
                             )}
 
                             {/* MISMONG LINE CHART NA MAY HOVER (HIGHLIGHT) LISTENER */}
-                            <div style={{ width: '100%', height: '210px', marginTop: '6px' }}>
+                            <div className="weekly-inventory-chart">
                                 <LineChart
                                     series={[
                                         { id: 'stock-in', data: weeklyStockInData, color: '#0d9488', label: 'Stock In', curve: 'monotoneX', showMark: true },
@@ -464,95 +474,258 @@ export default function Dashboard({ showPage }) {
 
             {/* FULL CALENDAR MODAL */}
             {isCalendarModalOpen && (
-                <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", background: "rgba(0, 0, 0, 0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)" }}>
-                    <div style={{ background: "#ffffff", width: "90%", maxWidth: "750px", borderRadius: "12px", padding: "24px", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)", maxHeight: "90vh", overflowY: "auto" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", borderBottom: "1px solid #e5e7eb", paddingBottom: "12px" }}>
-                            <h2 style={{ fontSize: "20px", fontWeight: "bold", color: "#111827" }}>VetStock Schedule & Expiry Calendar</h2>
-                            <button onClick={() => setIsCalendarModalOpen(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#6b7280" }}><i className="fa-solid fa-xmark"></i></button>
-                        </div>
+                <div
+                    className="calendar-modal-overlay"
+                    onClick={(event) => {
+                        if (event.target === event.currentTarget) {
+                            setIsCalendarModalOpen(false);
+                        }
+                    }}
+                >
+                    <section
+                        className="calendar-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="calendar-modal-title"
+                    >
+                        <header className="calendar-modal-header">
+                            <div>
+                                <h2 id="calendar-modal-title">Schedule &amp; Expiry Calendar</h2>
+                                <p>Appointments, follow-ups, and inventory expirations</p>
+                            </div>
+                            <button
+                                type="button"
+                                className="calendar-close-button"
+                                aria-label="Close calendar"
+                                onClick={() => setIsCalendarModalOpen(false)}
+                            >
+                                <i className="fa-solid fa-xmark"></i>
+                            </button>
+                        </header>
 
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", background: "#f9fafb", padding: "10px 14px", borderRadius: "8px", border: "1px solid #e5e7eb" }}>
-                            <span style={{ fontSize: "13px", fontWeight: "bold", color: "#374151" }}>Jump to Date:</span>
-                            <div style={{ display: "flex", gap: "10px" }}>
-                                <select value={calMonth} onChange={(e) => setCalMonth(Number(e.target.value))} style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid #d1d5db", background: "#ffffff", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}>
-                                    {monthNames.map((m, idx) => <option key={m} value={idx}>{m}</option>)}
+                        <div className="calendar-desktop-controls">
+                            <span>Jump to Date:</span>
+                            <div>
+                                <select
+                                    aria-label="Select month"
+                                    value={calMonth}
+                                    onChange={(event) => setCalMonth(Number(event.target.value))}
+                                >
+                                    {monthNames.map((month, index) => (
+                                        <option key={month} value={index}>{month}</option>
+                                    ))}
                                 </select>
-                                <select value={calYear} onChange={(e) => setCalYear(Number(e.target.value))} style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid #d1d5db", background: "#ffffff", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}>
-                                    {yearsList.map(y => <option key={y} value={y}>{y}</option>)}
+                                <select
+                                    aria-label="Select year"
+                                    value={calYear}
+                                    onChange={(event) => setCalYear(Number(event.target.value))}
+                                >
+                                    {yearsList.map((year) => (
+                                        <option key={year} value={year}>{year}</option>
+                                    ))}
                                 </select>
                             </div>
                         </div>
 
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "8px", textAlign: "center", marginBottom: "10px" }}>
-                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d} style={{ fontWeight: "bold", fontSize: "12px", color: "#6b7280", paddingBottom: "6px" }}>{d}</div>)}
-                            {Array.from({ length: firstDayIndex }).map((_, i) => <div key={`modal-empty-${i}`} />)}
-                            {Array.from({ length: daysInMonth }).map((_, i) => {
-                                const dayNum = i + 1;
-                                const thisDateObj = new Date(calYear, calMonth, dayNum);
-                                const dateString = thisDateObj.toDateString();
-                                const dayEvents = calendarEvents.filter(ev => ev.date === dateString);
+                        <div className="calendar-mobile-controls">
+                            <div className="calendar-month-picker">
+                                <button
+                                    type="button"
+                                    className="calendar-month-picker-button"
+                                    aria-expanded={isMonthPickerOpen}
+                                    aria-haspopup="true"
+                                    onClick={() => setIsMonthPickerOpen((isOpen) => !isOpen)}
+                                >
+                                    {monthNames[calMonth]}
+                                    <i className="fa-solid fa-chevron-down"></i>
+                                </button>
+                                {isMonthPickerOpen && (
+                                    <div className="calendar-month-options">
+                                        {monthNames.map((month, index) => (
+                                            <button
+                                                type="button"
+                                                key={month}
+                                                className={index === calMonth ? 'selected' : ''}
+                                                onClick={() => {
+                                                    setCalMonth(index);
+                                                    setIsMonthPickerOpen(false);
+                                                }}
+                                            >
+                                                {month}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <select
+                                aria-label="Select year"
+                                className="calendar-year-select"
+                                value={calYear}
+                                onChange={(event) => {
+                                    setCalYear(Number(event.target.value));
+                                    setIsMonthPickerOpen(false);
+                                }}
+                            >
+                                {yearsList.map((year) => (
+                                    <option key={year} value={year}>{year}</option>
+                                ))}
+                            </select>
+                            <button
+                                type="button"
+                                className="calendar-today-button"
+                                onClick={goToCurrentMonth}
+                            >
+                                Today
+                            </button>
+                        </div>
+
+                        <div className="calendar-weekdays" aria-hidden="true">
+                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                                <div key={day}>{day}</div>
+                            ))}
+                        </div>
+
+                        <div className="calendar-month-grid">
+                            {Array.from({ length: calendarDayCount }, (_, index) => {
+                                const thisDateObj = new Date(calYear, calMonth, index - firstDayIndex + 1);
+                                const isCurrentMonth = thisDateObj.getMonth() === calMonth;
+                                const isToday = thisDateObj.toDateString() === new Date().toDateString();
+                                const dayEvents = calendarEvents.filter(
+                                    (event) => event.date === thisDateObj.toDateString()
+                                );
+                                const dateLabel = thisDateObj.toLocaleDateString(undefined, {
+                                    weekday: 'long',
+                                    month: 'long',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                });
+                                const dayClasses = [
+                                    'calendar-day',
+                                    !isCurrentMonth && 'other-month',
+                                    isToday && 'today',
+                                    dayEvents.length > 0 && 'has-events'
+                                ].filter(Boolean).join(' ');
 
                                 return (
-                                    <div key={dayNum} onClick={() => { setSelectedDate(thisDateObj); setIsDayDetailModalOpen(true); }} style={{ minHeight: "75px", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "6px", background: "#ffffff", cursor: "pointer", textAlign: "left", overflow: "hidden" }}>
-                                        <div style={{ fontSize: "12px", fontWeight: "bold", color: "#111827", marginBottom: "4px" }}>{dayNum}</div>
-                                        {dayEvents.slice(0, 2).map((ev, idx) => {
-                                            let tagBg = "#fef3c7";
-                                            let tagColor = "#92400e";
-                                            if (ev.status === 'Completed') { tagBg = "#dcfce7"; tagColor = "#166534"; }
-                                            else if (ev.status === 'Cancelled' || ev.status === 'Overdue') { tagBg = "#fee2e2"; tagColor = "#991b1b"; }
-                                            else if (ev.status === 'Upcoming') { tagBg = "#dbeafe"; tagColor = "#1e40af"; }
-
-                                            return (
-                                                <div key={idx} style={{ fontSize: "9px", background: tagBg, color: tagColor, padding: "2px 4px", borderRadius: "3px", marginBottom: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                                    {ev.title}
-                                                </div>
-                                            );
-                                        })}
-                                        {dayEvents.length > 2 && <div style={{ fontSize: "8px", color: "#6b7280", fontWeight: "bold" }}>+{dayEvents.length - 2} more</div>}
-                                    </div>
+                                    <button
+                                        type="button"
+                                        key={thisDateObj.toISOString()}
+                                        className={dayClasses}
+                                        aria-label={`${dateLabel}${dayEvents.length ? `, ${dayEvents.length} events` : ''}`}
+                                        onClick={() => {
+                                            setIsMonthPickerOpen(false);
+                                            if (!isCurrentMonth) {
+                                                setCalMonth(thisDateObj.getMonth());
+                                                setCalYear(thisDateObj.getFullYear());
+                                            }
+                                            setSelectedDate(thisDateObj);
+                                            setIsDayDetailModalOpen(true);
+                                        }}
+                                    >
+                                        <span className="calendar-day-number">{thisDateObj.getDate()}</span>
+                                        <span className="calendar-event-dots" aria-hidden="true">
+                                            {dayEvents.slice(0, 3).map((calendarEvent, eventIndex) => (
+                                                <span
+                                                    key={`${calendarEvent.type}-${eventIndex}`}
+                                                    className={`calendar-event-dot ${calendarEvent.status.toLowerCase()}`}
+                                                />
+                                            ))}
+                                            {dayEvents.length > 3 && (
+                                                <span className="calendar-more-events">+{dayEvents.length - 3}</span>
+                                            )}
+                                        </span>
+                                        <span className="calendar-day-events">
+                                            {dayEvents.slice(0, 2).map((calendarEvent, eventIndex) => (
+                                                <span
+                                                    key={`label-${calendarEvent.type}-${eventIndex}`}
+                                                    className={`calendar-event-pill ${calendarEvent.status.toLowerCase()}`}
+                                                >
+                                                    {calendarEvent.title}
+                                                </span>
+                                            ))}
+                                            {dayEvents.length > 2 && (
+                                                <span className="calendar-more-events">
+                                                    +{dayEvents.length - 2} more
+                                                </span>
+                                            )}
+                                        </span>
+                                    </button>
                                 );
                             })}
                         </div>
-                    </div>
+
+                        <footer className="calendar-legend">
+                            <span><i className="calendar-legend-dot upcoming"></i>Upcoming</span>
+                            <span><i className="calendar-legend-dot completed"></i>Completed</span>
+                            <span><i className="calendar-legend-dot overdue"></i>Cancelled / overdue</span>
+                            <span><i className="calendar-legend-dot expiry"></i>Expiry</span>
+                        </footer>
+                    </section>
                 </div>
             )}
 
             {/* DAY DETAIL MODAL */}
             {isDayDetailModalOpen && selectedDate && (
-                <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", background: "rgba(0, 0, 0, 0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000, backdropFilter: "blur(4px)" }}>
-                    <div style={{ background: "#ffffff", width: "90%", maxWidth: "450px", borderRadius: "12px", padding: "24px", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", borderBottom: "1px solid #e5e7eb", paddingBottom: "10px" }}>
-                            <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#111827" }}>{selectedDate.toDateString()}</h3>
-                        </div>
-                        <div style={{ maxHeight: "60vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>
+                <div
+                    className="calendar-detail-overlay"
+                    onClick={(event) => {
+                        if (event.target === event.currentTarget) {
+                            setIsDayDetailModalOpen(false);
+                        }
+                    }}
+                >
+                    <section
+                        className="calendar-detail-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="calendar-detail-title"
+                    >
+                        <header className="calendar-detail-header">
+                            <h3 id="calendar-detail-title">
+                                {selectedDate.toLocaleDateString(undefined, {
+                                    weekday: 'long',
+                                    month: 'long',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                })}
+                            </h3>
+                            <button
+                                type="button"
+                                className="calendar-close-button"
+                                aria-label="Close day details"
+                                onClick={() => setIsDayDetailModalOpen(false)}
+                            >
+                                <i className="fa-solid fa-xmark"></i>
+                            </button>
+                        </header>
+                        <div className="calendar-event-list">
                             {calendarEvents.filter(ev => ev.date === selectedDate.toDateString()).length > 0 ? (
                                 calendarEvents.filter(ev => ev.date === selectedDate.toDateString()).map((ev, i) => {
-                                    let badgeBg = "#0d9488";
-                                    let badgeColor = "#ffffff";
-                                    if (ev.status === 'Completed') { badgeBg = "#dcfce7"; badgeColor = "#166534"; }
-                                    else if (ev.status === 'Cancelled' || ev.status === 'Overdue') { badgeBg = "#fee2e2"; badgeColor = "#991b1b"; }
-                                    else if (ev.status === 'Upcoming') { badgeBg = "#dbeafe"; badgeColor = "#1e40af"; }
-
                                     return (
-                                        <div key={i} style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "12px" }}>
-                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                                                <strong style={{ fontSize: "13px", color: "#111827" }}>{ev.title}</strong>
-                                                <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", background: badgeBg, color: badgeColor, fontWeight: "bold" }}>
+                                        <article key={i} className="calendar-event-card">
+                                            <div className="calendar-event-card-heading">
+                                                <strong>{ev.title}</strong>
+                                                <span className={`calendar-event-status ${ev.status.toLowerCase()}`}>
                                                     {ev.status}
                                                 </span>
                                             </div>
-                                            <p style={{ fontSize: "12px", color: "#4b5563", margin: 0 }}>{ev.desc}</p>
-                                        </div>
+                                            <p>{ev.desc}</p>
+                                        </article>
                                     );
                                 })
                             ) : (
-                                <p style={{ fontSize: "13px", color: "#6b7280", textAlign: "center", padding: "20px 0" }}>No events or schedules for this date.</p>
+                                <p className="calendar-empty-day">No events or schedules for this date.</p>
                             )}
                         </div>
-                        <div style={{ marginTop: "20px", textAlign: "right" }}>
-                            <button onClick={() => setIsDayDetailModalOpen(false)} style={{ background: "var(--primary)", color: "#ffffff", border: "none", padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}>Close</button>
-                        </div>
-                    </div>
+                        <footer className="calendar-detail-actions">
+                            <button
+                                type="button"
+                                onClick={() => setIsDayDetailModalOpen(false)}
+                            >
+                                Done
+                            </button>
+                        </footer>
+                    </section>
                 </div>
             )}
         </div>

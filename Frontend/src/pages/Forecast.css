@@ -263,3 +263,153 @@
 .forecast-backtest-heading {
   margin-top: 28px !important;
 }
+
+/* Mobile responsive */
+@media (max-width: 700px) {
+  .forecast-page {
+    padding: 14px;
+  }
+
+  .forecast-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .forecast-header h2 {
+    font-size: 24px;
+  }
+
+  .refresh-btn {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .report-info-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ai-cards-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .ai-insight-card {
+    padding: 14px;
+  }
+
+  .card-icon-header {
+    gap: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+  }
+
+  .card-icon-header i {
+    padding: 10px;
+    font-size: 18px;
+  }
+
+  .card-icon-header h3 {
+    font-size: 16px;
+  }
+
+  .card-content ul {
+    padding-left: 16px;
+  }
+
+  .card-content li {
+    margin-bottom: 10px;
+    font-size: 13px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+  }
+
+  .forecast-numeric-section {
+    padding: 14px;
+  }
+
+  .forecast-section-description,
+  .card-content li {
+    text-align: left;
+  }
+
+  .forecast-table-scroll {
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .forecast-table th,
+  .forecast-table td {
+    padding: 10px 12px;
+    white-space: nowrap;
+  }
+
+  .forecast-demand-table {
+    width: 1010px;
+    min-width: 1010px;
+    table-layout: fixed;
+  }
+
+  .forecast-demand-table th:nth-child(1),
+  .forecast-demand-table td:nth-child(1) {
+    width: 180px;
+  }
+
+  .forecast-demand-table th:nth-child(2),
+  .forecast-demand-table td:nth-child(2) {
+    width: 100px;
+  }
+
+  .forecast-demand-table th:nth-child(3),
+  .forecast-demand-table td:nth-child(3) {
+    width: 180px;
+  }
+
+  .forecast-demand-table th:nth-child(4),
+  .forecast-demand-table td:nth-child(4) {
+    width: 160px;
+  }
+
+  .forecast-demand-table th:nth-child(5),
+  .forecast-demand-table td:nth-child(5) {
+    width: 160px;
+  }
+
+  .forecast-demand-table th:nth-child(6),
+  .forecast-demand-table td:nth-child(6) {
+    width: 230px;
+  }
+
+  .forecast-validation-table {
+    width: 720px;
+    min-width: 720px;
+    table-layout: fixed;
+  }
+
+  .forecast-validation-table th:nth-child(1),
+  .forecast-validation-table td:nth-child(1) {
+    width: 180px;
+  }
+
+  .forecast-validation-table th:nth-child(2),
+  .forecast-validation-table td:nth-child(2) {
+    width: 190px;
+  }
+
+  .forecast-validation-table th:nth-child(3),
+  .forecast-validation-table td:nth-child(3) {
+    width: 170px;
+  }
+
+  .forecast-validation-table th:nth-child(4),
+  .forecast-validation-table td:nth-child(4) {
+    width: 180px;
+  }
+
+  .forecast-risk-badge {
+    white-space: nowrap;
+  }
+}

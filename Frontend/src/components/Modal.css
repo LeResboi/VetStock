@@ -90,3 +90,28 @@
         transform: translateY(0);
     }
 }
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+    .vs-modal-overlay {
+        align-items: flex-end;
+        padding: 12px;
+    }
+
+    .vs-modal {
+        max-height: calc(100dvh - 24px);
+        overflow-y: auto;
+        padding: 20px;
+        border-radius: 16px;
+    }
+
+    .vs-modal-actions {
+        flex-direction: column-reverse;
+        gap: 8px;
+    }
+
+    .vs-modal-actions button {
+        width: 100%;
+        min-height: 44px;
+    }
+}

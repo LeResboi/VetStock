@@ -132,6 +132,14 @@ export default function Forecast() {
   const hasForecastData =
     Boolean(aiReport) || itemForecasts.length > 0;
 
+  const formatInsightText = (text) =>
+    text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={index}>{part.slice(2, -2)}</strong>;
+      }
+
+      return part;
+    });
 
   const parseAiReportToCards = (text) => {
     if (!text) return null;
@@ -162,14 +170,12 @@ export default function Forecast() {
         let cleanLine = line.trim();
 
         cleanLine = cleanLine
-          .replace(/^[-*•]\s*/, '')
-          .replace(/^\d+\.\s*/, '');
+          .replace(/^(?:[-•]\s+|\*\s+)/, '')
+          .replace(/^\d+\.\s+/, '');
 
         if (!cleanLine) return null;
 
-        return (
-          <li key={i}>{cleanLine}</li>
-        );
+        return <li key={i}>{formatInsightText(cleanLine)}</li>;
       }).filter(Boolean);
 
       return (
@@ -295,7 +301,7 @@ export default function Forecast() {
                 <p>No inventory forecast data is available.</p>
               ) : (
                 <div className="forecast-table-scroll">
-                  <table className="forecast-table">
+                  <table className="forecast-table forecast-demand-table">
                     <thead>
                       <tr>
                         <th>Medicine</th>
@@ -369,7 +375,7 @@ export default function Forecast() {
               </p>
 
               <div className="forecast-table-scroll">
-                <table className="forecast-table">
+                <table className="forecast-table forecast-validation-table">
                   <thead>
                     <tr>
                       <th>Medicine</th>

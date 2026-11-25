@@ -397,23 +397,11 @@ export default function Inventory() {
           <h2>Inventory Management</h2>
           <p>Real-time tracking of veterinary medicines, supplies, and stock levels from Supabase.</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="inventory-header-actions">
           <button
             type="button"
+            className="inventory-print-btn"
             onClick={handlePrint}
-            style={{
-              backgroundColor: '#0f766e',
-              color: 'white',
-              border: 'none',
-              padding: '10px 16px',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
           >
             <i className="fa-solid fa-print"></i> Print / Save PDF
           </button>
@@ -1072,64 +1060,72 @@ export default function Inventory() {
         </div>
       )}
 
-      {/* SEARCH & FILTER BAR */}
-      <div className="inventory-toolbar">
-        <div className="search-box">
-          <i className="fa-solid fa-magnifying-glass"></i>
-          <input
-            type="text"
-            placeholder="Search medicine name, ID, or category..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        <div className="filter-group">
-          <select
-            value={filterCategory}
-            onChange={e => setFilterCategory(e.target.value)}
-            className="filter-select"
-          >
-            <option value="">All Categories</option>
-            <option value="Medicine">Medicine</option>
-            <option value="Vaccine">Vaccine</option>
-            <option value="Supplies">Supplies</option>
-          </select>
-        </div>
-      </div>
-
-      {/* STATS SUMMARY CARDS */}
-      <div className="inventory-stats">
-        <div className="stat-card">
-          <div className="stat-icon blue">
-            <i className="fa-solid fa-boxes-stacked"></i>
+      <div className="inventory-mobile-overview">
+        {/* SEARCH & FILTER BAR */}
+        <div className="inventory-toolbar">
+          <div className="search-box">
+            <i className="fa-solid fa-magnifying-glass"></i>
+            <input
+              type="text"
+              placeholder="Search medicine name, ID, or category..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
           </div>
-          <div>
-            <h3>{totalItems}</h3>
-            <p>Total Inventory Items</p>
+
+          <div className="filter-group">
+            <select
+              value={filterCategory}
+              onChange={e => setFilterCategory(e.target.value)}
+              className="filter-select"
+            >
+              <option value="">All Categories</option>
+              <option value="Medicine">Medicine</option>
+              <option value="Vaccine">Vaccine</option>
+              <option value="Supplies">Supplies</option>
+            </select>
           </div>
         </div>
 
-        <div className="stat-card">
-          <div className="stat-icon orange">
-            <i className="fa-solid fa-triangle-exclamation"></i>
+        {/* STATS SUMMARY CARDS */}
+        <div className="inventory-stats">
+          <div className="stat-card">
+            <div className="stat-icon blue">
+              <i className="fa-solid fa-boxes-stacked"></i>
+            </div>
+            <div>
+              <h3>{totalItems}</h3>
+              <p>Total Inventory Items</p>
+            </div>
           </div>
-          <div>
-            <h3>{lowStockItems}</h3>
-            <p>Low Stock Alerts</p>
+
+          <div className="stat-card">
+            <div className="stat-icon orange">
+              <i className="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div>
+              <h3>{lowStockItems}</h3>
+              <p>Low Stock Alerts</p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* TABLE VIEW (Naka-wrap sa componentRef para ma-print nang maayos) */}
-      <div className="table-container" ref={componentRef}>
+      <div
+        className="table-container"
+        ref={componentRef}
+        role="region"
+        aria-label="Inventory items"
+        tabIndex={0}
+      >
         <div className="print-header" style={{ display: 'none' }}>
           <h2>VetStock Veterinary Clinic - Inventory Report</h2>
           <p>Generated on: {new Date().toLocaleDateString()}</p>
           <hr style={{ margin: '15px 0', border: '1px solid #ccc' }} />
         </div>
 
-        <table className="modern-table">
+        <table className="modern-table inventory-table">
           <thead>
             <tr>
               <th>Item ID</th>
@@ -1168,7 +1164,7 @@ export default function Inventory() {
                     style={{ cursor: 'pointer' }}
                   >
                     <td><span className="item-id">#{String(item.id).substring(0, 8)}</span></td>
-                    <td><strong>{item.name}</strong></td>
+                    <td className="medicine-name"><strong>{item.name}</strong></td>
                     <td><span className="category-tag">{item.category}</span></td>
                     <td>{qty}</td>
                     <td>₱{Number(item.price || 0).toFixed(2)}</td>

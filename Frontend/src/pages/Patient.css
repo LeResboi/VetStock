@@ -24,6 +24,13 @@
   font-size: 13px;
 }
 
+.patient-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .add-btn {
   background-color: #0d9488;
   color: white;
@@ -230,6 +237,14 @@
 
 .appointment-box i {
   color: #0d9488;
+}
+
+.patient-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 
@@ -544,5 +559,244 @@
 
 .patient-pagination-controls span {
     white-space: nowrap;
+}
+
+/* Mobile responsive */
+@media (max-width: 650px) {
+  .patient-page {
+    padding: 14px;
+  }
+
+  .patient-mobile-overview {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+    margin-bottom: 18px;
+  }
+
+  .patient-mobile-overview .patient-stats,
+  .patient-mobile-overview .patient-toolbar {
+    display: contents;
+  }
+
+  .patient-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .patient-header .add-btn {
+    justify-content: center;
+    width: auto;
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .patient-header-actions {
+    align-self: flex-end;
+    width: fit-content;
+    max-width: 100%;
+    gap: 8px;
+  }
+
+  .patient-stats .stat-card {
+    min-width: 0;
+    min-height: 80px;
+    gap: 7px;
+    padding: 9px;
+  }
+
+  .patient-stats .stat-icon {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    font-size: 14px;
+  }
+
+  .patient-stats .stat-card h3 {
+    font-size: 17px;
+  }
+
+  .patient-stats .stat-card p {
+    font-size: 10px;
+    line-height: 1.2;
+  }
+
+  .patient-toolbar .search-box {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px 10px;
+  }
+
+  .patient-toolbar .search-box input {
+    min-width: 0;
+    font-size: 11px;
+  }
+
+  .patient-page .patient-toolbar .view-toggle {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    align-self: stretch;
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .patient-toolbar .toggle-btn {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .patient-mobile-overview .patient-stats .stat-card:nth-child(1) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .patient-mobile-overview .patient-stats .stat-card:nth-child(2) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .patient-mobile-overview .patient-stats .stat-card:nth-child(3) {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .patient-mobile-overview .patient-stats .stat-card:nth-child(4) {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .patient-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .patient-card {
+    padding: 14px;
+  }
+
+  .patient-card-header {
+    margin-bottom: 6px;
+  }
+
+  .pet-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 17px;
+  }
+
+  .patient-card-body h3 {
+    font-size: 16px;
+    margin-bottom: 2px;
+  }
+
+  .species-tag {
+    margin-bottom: 8px;
+    padding: 2px 6px;
+  }
+
+  .patient-info-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding-top: 8px;
+    font-size: 12px;
+  }
+
+  .appointment-box {
+    gap: 6px;
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+
+  .patient-card-actions {
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .patient-card-actions .patient-action-btn,
+  .patient-card-actions .delete-patient-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .patient-pagination {
+    padding: 14px;
+  }
+
+  .patient-pagination-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .patient-page .table-container {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .patient-page .table-container > .modern-table {
+    width: 1080px;
+    min-width: 1080px;
+    table-layout: fixed;
+  }
+
+  .patient-page .table-container > .modern-table th,
+  .patient-page .table-container > .modern-table td {
+    padding: 12px 10px;
+    white-space: nowrap;
+  }
+
+  .patient-page .table-container > .modern-table th:nth-child(1),
+  .patient-page .table-container > .modern-table td:nth-child(1) {
+    width: 120px;
+  }
+
+  .patient-page .table-container > .modern-table th:nth-child(2),
+  .patient-page .table-container > .modern-table td:nth-child(2) {
+    width: 170px;
+  }
+
+  .patient-page .table-container > .modern-table th:nth-child(3),
+  .patient-page .table-container > .modern-table td:nth-child(3) {
+    width: 100px;
+  }
+
+  .patient-page .table-container > .modern-table th:nth-child(4),
+  .patient-page .table-container > .modern-table td:nth-child(4) {
+    width: 170px;
+  }
+
+  .patient-page .table-container > .modern-table th:nth-child(5),
+  .patient-page .table-container > .modern-table td:nth-child(5) {
+    width: 160px;
+  }
+
+  .patient-page .table-container > .modern-table th:nth-child(6),
+  .patient-page .table-container > .modern-table td:nth-child(6) {
+    width: 80px;
+  }
+
+  .patient-page .table-container > .modern-table th:nth-child(7),
+  .patient-page .table-container > .modern-table td:nth-child(7) {
+    width: 150px;
+  }
+
+  .patient-page .table-container > .modern-table th:nth-child(8),
+  .patient-page .table-container > .modern-table td:nth-child(8) {
+    width: 130px;
+  }
+
+  .patient-page .table-container > .modern-table td:nth-child(8) > button + button {
+    margin-left: 8px;
+  }
 }
 

@@ -533,7 +533,8 @@ export default function UserManagement() {
                 </div>
 
                 <div className="um-table-container">
-                    <table className="um-table requests-table">
+                    <div className="um-table-scroll">
+                        <table className="um-table requests-table">
                         <thead>
                             <tr>
                                 <th>Applicant</th>
@@ -611,8 +612,8 @@ export default function UserManagement() {
                                 </tr>
                             )}
                         </tbody>
-                    </table>
-
+                        </table>
+                    </div>
                     {/* Pending Requests Pagination */}
                     <div className="um-pagination">
                         <div className="um-pagination-info">
@@ -702,7 +703,8 @@ export default function UserManagement() {
                     </select>
                 </div>
                 <div className="um-table-container">
-                    <table className="um-table users-table">
+                    <div className="um-table-scroll">
+                        <table className="um-table users-table">
                         <thead>
                             <tr>
                                 <th>Name</th>
@@ -778,7 +780,8 @@ export default function UserManagement() {
 
                         </tbody>
 
-                    </table>
+                        </table>
+                    </div>
                     {/* Registered Users Pagination */}
                     <div className="um-pagination">
                         <div className="um-pagination-info">

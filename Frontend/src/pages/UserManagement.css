@@ -311,6 +311,11 @@
     border-radius: 8px;
 }
 
+.um-table-scroll {
+    width: 100%;
+    overflow: visible;
+}
+
 .um-table {
     width: 100%;
     min-width: 750px;
@@ -975,4 +980,44 @@
 .um-delete-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+    .user-management-page {
+        padding: 12px;
+    }
+
+    .user-management-page h1 {
+        font-size: 21px;
+    }
+
+    .um-stats {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+    }
+
+    .um-stat-card {
+        padding: 14px;
+    }
+
+    .um-table-container {
+        overflow: visible;
+    }
+
+    .um-table-scroll {
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .um-pagination {
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .um-pagination-controls {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
 }
