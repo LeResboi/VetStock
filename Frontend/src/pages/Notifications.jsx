@@ -318,38 +318,42 @@ export default function Notifications() {
         Authorization: `Bearer ${token}`
       };
 
-      if (alertToResolve.raw && alertToResolve.raw.item_id && Number(alertToResolve.raw.quantity) > 0) {
-        const stockOutPayload = {
-          item_id: alertToResolve.raw.item_id,
-          batch_id: alertToResolve.raw.batch_id,
-          quantity: Number(alertToResolve.raw.quantity),
-          transaction_type: 'OUT',
-          notes: `Disposal of expired medicine. Note: ${resolveNote.trim() || 'Expired items quarantined and removed.'}`
-        };
+      if (alertToResolve.alertType === 'EXPIRED' && alertToResolve.raw?.batch_id) {
+        const response = await fetch(
+          `https://vetstock-backend.onrender.com/api/inventory-batches/${alertToResolve.raw.batch_id}/dispose`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ notes: resolveNote.trim() })
+          }
+        );
+        const result = await response.json();
 
-        const txRes = await fetch('https://vetstock-backend.onrender.com/api/stock-transactions', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(stockOutPayload)
-        });
-
-        const txData = await txRes.json();
-        if (!txRes.ok || (txData.success === false)) {
-          throw new Error(txData.message || 'Failed to process stock-out disposal.');
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Failed to dispose expired batch.');
         }
+
+        setToastMessage(result.message || 'Expired batch disposed and stock-out recorded.');
+      } else {
+        const response = await fetch(
+          `https://vetstock-backend.onrender.com/api/alerts/${alertToResolve.id}/resolve`,
+          {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({
+              resolution_notes: resolveNote.trim() || null
+            })
+          }
+        );
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Failed to resolve alert.');
+        }
+
+        setToastMessage(result.message || 'Alert resolved successfully.');
       }
 
-      if (!String(alertToResolve.id).startsWith('exp-batch-')) {
-        await fetch(`https://vetstock-backend.onrender.com/api/alerts/${alertToResolve.id}/resolve`, {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({
-            resolution_notes: resolveNote.trim() || 'Disposed due to expiration.'
-          })
-        });
-      }
-
-      setToastMessage('Expired medicine successfully disposed and removed from inventory!');
       setToastType('success');
       
       setResolveNote('');
@@ -370,6 +374,9 @@ export default function Notifications() {
   const batchCount = notifications.filter(notif => notif.category === 'batch').length;
   const expirationCount = notifications.filter(notif => notif.category === 'expiration').length;
   const appointmentCount = notifications.filter(notif => notif.category === 'appointment').length;
+  const isBatchDisposal =
+    alertToResolve?.alertType === 'EXPIRED' &&
+    Boolean(alertToResolve.raw?.batch_id);
 
   return (
     <div className="notifications-page">
@@ -571,15 +578,21 @@ export default function Notifications() {
       {showResolveModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '16px' }}>
           <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', width: '400px', maxWidth: '90%', boxSizing: 'border-box' }}>
-            <h3 style={{ marginBottom: '10px', fontSize: '18px', fontWeight: '700' }}>Process Item Disposal</h3>
+            <h3 style={{ marginBottom: '10px', fontSize: '18px', fontWeight: '700' }}>
+              {isBatchDisposal ? 'Dispose Expired Item' : 'Resolve Alert'}
+            </h3>
             <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px' }}>
-              This will automatically deduct the expired batch from active inventory stocks and log a disposal transaction. Enter optional notes:
+              {isBatchDisposal
+                ? 'This will remove the remaining expired batch quantity from inventory and record a stock-out. Enter optional notes:'
+                : 'This will mark the alert as resolved. Enter optional resolution notes:'}
             </p>
             
             <textarea
               value={resolveNote}
               onChange={(e) => setResolveNote(e.target.value)}
-              placeholder="E.g., Quarantined and prepared for safe incineration..."
+              placeholder={isBatchDisposal
+                ? 'E.g., Quarantined and prepared for safe disposal...'
+                : 'Optional resolution notes...'}
               rows="4"
               style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '20px', fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }}
             />
@@ -595,7 +608,7 @@ export default function Notifications() {
                 onClick={handleResolveAlert}
                 style={{ padding: '8px 16px', background: '#dc2626', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', color: '#fff' }}
               >
-                Confirm & Remove from Inventory
+                {isBatchDisposal ? 'Confirm Disposal' : 'Resolve Alert'}
               </button>
             </div>
           </div>

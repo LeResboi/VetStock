@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 
 import authRoutes from "./Routes/Auth.js";
 import inventoryRoutes from "./Routes/Inventory.js";
+import inventoryBatchRoutes from "./Routes/Inventory_Batches.js";
 import stockTransactionRoutes from "./Routes/Stock_Transactions.js";
 import alertRoutes from "./Routes/Alerts.js";
 import healthRecordsRoutes from "./Routes/Health_Records.js";
@@ -58,6 +59,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/inventory", inventoryRoutes);
+app.use("/api/inventory-batches", inventoryBatchRoutes);
 app.use("/api/health-records", healthRecordsRoutes);
 app.use("/api/patients", patientRoutes);
 app.use("/api/reports", reportsRoutes);

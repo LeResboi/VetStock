@@ -503,9 +503,144 @@ CREATE TABLE IF NOT EXISTS system_config (
 );
 
 -- ============================================================
+-- ATOMIC EXPIRED-BATCH DISPOSAL
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.dispose_expired_inventory_batch(
+    p_batch_id UUID,
+    p_clinic_id UUID,
+    p_user_id UUID,
+    p_notes TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+    transaction_id UUID,
+    item_id UUID,
+    disposed_quantity INTEGER,
+    previous_stock INTEGER,
+    new_stock INTEGER,
+    already_disposed BOOLEAN
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_item_id UUID;
+    v_clinic_id UUID;
+    v_quantity INTEGER;
+    v_expiration_date DATE;
+    v_is_active BOOLEAN;
+    v_previous_stock INTEGER;
+    v_transaction_id UUID;
+    v_today DATE := (NOW() AT TIME ZONE 'Asia/Manila')::DATE;
+BEGIN
+    IF length(COALESCE(p_notes, '')) > 500 THEN
+        RAISE EXCEPTION 'Disposal notes must not exceed 500 characters.'
+            USING ERRCODE = '22023';
+    END IF;
+
+    SELECT batch.item_id
+    INTO v_item_id
+    FROM inventory_batches AS batch
+    WHERE batch.batch_id = p_batch_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Inventory batch not found.'
+            USING ERRCODE = 'P0002';
+    END IF;
+
+    SELECT item.clinic_id
+    INTO v_clinic_id
+    FROM inventory_items AS item
+    WHERE item.item_id = v_item_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Inventory item not found.'
+            USING ERRCODE = 'P0002';
+    END IF;
+
+    IF v_clinic_id IS DISTINCT FROM p_clinic_id THEN
+        RAISE EXCEPTION 'Access denied.'
+            USING ERRCODE = '42501';
+    END IF;
+
+    SELECT batch.quantity, batch.expiration_date, batch.is_active
+    INTO v_quantity, v_expiration_date, v_is_active
+    FROM inventory_batches AS batch
+    WHERE batch.batch_id = p_batch_id
+    FOR UPDATE;
+
+    IF v_expiration_date IS NULL OR v_expiration_date >= v_today THEN
+        RAISE EXCEPTION 'Only expired batches can be disposed.'
+            USING ERRCODE = '22023';
+    END IF;
+
+    SELECT COALESCE(SUM(batch.quantity), 0)::INTEGER
+    INTO v_previous_stock
+    FROM inventory_batches AS batch
+    WHERE batch.item_id = v_item_id;
+
+    IF v_quantity = 0 THEN
+        UPDATE inventory_batches
+        SET is_active = FALSE
+        WHERE batch_id = p_batch_id;
+
+        RETURN QUERY
+        SELECT NULL::UUID, v_item_id, 0, v_previous_stock,
+               v_previous_stock, TRUE;
+        RETURN;
+    END IF;
+
+    IF NOT v_is_active THEN
+        RAISE EXCEPTION 'Inactive batch still has remaining stock.'
+            USING ERRCODE = '22023';
+    END IF;
+
+    UPDATE inventory_batches
+    SET quantity = 0,
+        is_active = FALSE
+    WHERE batch_id = p_batch_id;
+
+    INSERT INTO stock_transactions (
+        item_id,
+        batch_id,
+        user_id,
+        transaction_type,
+        quantity,
+        previous_stock,
+        new_stock,
+        reason
+    )
+    VALUES (
+        v_item_id,
+        p_batch_id,
+        p_user_id,
+        'OUT',
+        v_quantity,
+        v_previous_stock,
+        v_previous_stock - v_quantity,
+        CASE
+            WHEN NULLIF(BTRIM(p_notes), '') IS NULL
+                THEN 'Expired batch disposal'
+            ELSE 'Expired batch disposal: ' || BTRIM(p_notes)
+        END
+    )
+    RETURNING stock_transactions.transaction_id
+    INTO v_transaction_id;
+
+    RETURN QUERY
+    SELECT v_transaction_id, v_item_id, v_quantity, v_previous_stock,
+           v_previous_stock - v_quantity, FALSE;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.dispose_expired_inventory_batch(UUID, UUID, UUID, TEXT)
+FROM PUBLIC, anon, authenticated;
+
+GRANT EXECUTE ON FUNCTION public.dispose_expired_inventory_batch(UUID, UUID, UUID, TEXT)
+TO service_role;
+
+-- ============================================================
 -- INDEXES
 -- ============================================================
-
 CREATE INDEX IF NOT EXISTS idx_users_clinic
 ON users(clinic_id);
 
